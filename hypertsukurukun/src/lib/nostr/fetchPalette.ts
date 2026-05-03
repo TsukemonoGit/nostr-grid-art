@@ -381,7 +381,7 @@ function collectAndResolveAsSections(
 		({ identifier, event }) => {
 			const emojis = resolveEmojisFromEvent(event, "30030:", event.pubkey);
 			return {
-				label: identifier ? `${identifier}の30030絵文字セット` : " unnamed の30030絵文字セット",
+				label: identifier ?? "unnamed",
 				emojis,
 			};
 		},
@@ -410,7 +410,7 @@ function collectAndResolveAsSections(
 	// ノラ絵文字セクションを追加（空でない場合のみ）
 	if (norapaintEmojis.length > 0) {
 		sections.push({
-			label: "10030に直入れしている絵文字",
+			label: "ノラ絵文字",
 			emojis: norapaintEmojis,
 		});
 	}

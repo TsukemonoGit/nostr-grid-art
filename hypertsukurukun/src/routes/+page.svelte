@@ -4,19 +4,9 @@
 	import Grid from "$lib/components/Grid.svelte";
 	import OutputPanel from "$lib/components/OutputPanel.svelte";
 	import NullEmojiSetting from "$lib/components/NullEmojiSetting.svelte";
+	import { selectedEmojiStore, deselectEmoji } from "$lib/stores";
 
 	let isMobile = $state(false);
-
-	/** ビューポート幅を監視してMobile/PCを切り替え */
-	function checkMobile(): void {
-		isMobile = window.innerWidth <= 768;
-	}
-
-	$effect(() => {
-		checkMobile();
-		window.addEventListener("resize", checkMobile);
-		return () => window.removeEventListener("resize", checkMobile);
-	});
 </script>
 
 {#if isMobile}
@@ -25,6 +15,14 @@
 		<LoginButton />
 		<Grid />
 		<Palette />
+		<!-- 選択中絵文字プレビュー -->
+		{#if $selectedEmojiStore}
+			<div class="selected-preview">
+				<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />
+				<span class="preview-shortcode">:{ $selectedEmojiStore.shortcode }:</span>
+				<button class="preview-deselect" onclick={deselectEmoji}>選択解除</button>
+			</div>
+		{/if}
 		<OutputPanel />
 		<NullEmojiSetting />
 	</div>
@@ -39,6 +37,14 @@
 		<div class="main-content">
 			<div class="palette-column">
 				<Palette />
+				<!-- 選択中絵文字プレビュー -->
+				{#if $selectedEmojiStore}
+					<div class="selected-preview">
+						<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />
+						<span class="preview-shortcode">:{ $selectedEmojiStore.shortcode }:</span>
+						<button class="preview-deselect" onclick={deselectEmoji}>選択解除</button>
+					</div>
+				{/if}
 				<NullEmojiSetting />
 			</div>
 			<div class="grid-column">
@@ -100,7 +106,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		overflow-y: auto;
 	}
 
 	.grid-column {
@@ -108,7 +113,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		overflow: auto;
+		overflow: hidden;
 	}
 
 	/* スマホ向けパレットカラムを狭く */
@@ -116,5 +121,41 @@
 		.palette-column {
 			flex: none;
 		}
+	}
+
+	/* 選択中絵文字プレビュー */
+	.selected-preview {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 12px;
+		background: #f5f5f5;
+		border-radius: 4px;
+	}
+
+	.selected-preview img {
+		width: 40px;
+		height: 40px;
+		object-fit: contain;
+	}
+
+	.preview-shortcode {
+		font-family: monospace;
+		font-size: 14px;
+		color: #555;
+		flex: 1;
+	}
+
+	.preview-deselect {
+		padding: 4px 10px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		background: white;
+		cursor: pointer;
+		font-size: 13px;
+	}
+
+	.preview-deselect:hover {
+		background: #f0f0f0;
 	}
 </style>

@@ -170,7 +170,7 @@
 <div class="grid-wrapper" role="grid" onclick={handleBackgroundClick} tabindex="0" onkeydown={handleKeydown} aria-label="絵文字グリッド">
 	<!-- グリッドエリア（上下左右に＋/−ボタン付き） -->
 	<div class="grid-outer">
-		<!-- 上端：行追加/削除ボタン -->
+		<!-- 上端：上に行を追加/削除ボタン -->
 		<div class="resize-bar top">
 			<button
 				class="resize-btn remove"
@@ -192,7 +192,7 @@
 
 		<!-- 中央エリア：左端＋グリッド -->
 		<div class="grid-center">
-			<!-- 左端：列追加/削除ボタン -->
+			<!-- 左端：左に列を挿入/追加ボタン -->
 			<div class="resize-bar left">
 				<button
 					class="resize-btn remove"
@@ -224,20 +224,16 @@
 										role="gridcell"
 										aria-label={cell ? `絵文字 ${cell[1]}` : "空セル"}
 										onclick={(e) => handleCellClick(rowIndex, colIndex, e)}
-									>
-										{#if cell && cell[0] === "emoji"}
-											<img src={cell[2]} alt={cell[1]} loading="lazy" />
-										{/if}
-									</td>
+									>{#if cell && cell[0] === "emoji"}
+											<img src={cell[2]} alt={cell[1]} loading="lazy" />{/if}</td>
 								{/each}
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			</div>
-		</div>
-
-		<!-- 右端：列追加/削除ボタン -->
+	
+		<!-- 右端：右に列を追加/削除ボタン -->
 		<div class="resize-bar right">
 			<button
 				class="resize-btn remove"
@@ -260,8 +256,8 @@
 			</button>
 		</div>
 	</div>
-
-	<!-- 下端：行追加/削除ボタン -->
+	</div>
+	<!-- 下端：下に行を追加/削除ボタン -->
 	<div class="resize-bar bottom">
 		<button
 			class="resize-btn remove"
@@ -338,6 +334,7 @@
 
 	.grid-center {
 		display: flex;
+		align-self: center;
 	}
 
 	/* 上下のresize-bar */
@@ -419,21 +416,27 @@
 	}
 
 	.cell {
+		box-sizing: border-box;     
 		width: var(--cell-size, 48px);
-		height: var(--cell-size, 48px);
+		height: var(--cell-size, 48px) ;
 		min-width: var(--cell-size, 48px);
 		min-height: var(--cell-size, 48px);
+		padding: 0;   
 		vertical-align: middle;
 		text-align: center;
 		cursor: pointer;
 		background: #fafafa;
 		border: 1px solid #e0e0e0;
+		overflow: hidden;
 	}
 
 	.cell img {
-		width: 80%;
-		height: 80%;
+		display: block;  /* インライン descender 隙間を除去 */
+		width: 100%;
+		height: 100%;
 		object-fit: contain;
+		margin:0;
+		padding:0;
 	}
 
 	.cell:hover {

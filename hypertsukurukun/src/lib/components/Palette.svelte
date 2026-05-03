@@ -1,43 +1,47 @@
 <script lang="ts">
-	import { paletteSectionsStore, paletteStore, selectedEmojiStore, selectEmoji, deselectEmoji } from "$lib/stores";
+	import { paletteSectionsStore, paletteStore, selectedEmojiStore, selectEmoji } from "$lib/stores";
 	import type { PaletteEmoji, PaletteSection } from "$lib/types";
 
 	let sections = $state<PaletteSection[]>([]);
 	let flatList = $state<PaletteEmoji[]>([]);
-	let selected = $state<PaletteEmoji | null>(null);
 	let tabContainer = $state<HTMLDivElement | null>(null);
 	let activeSection = $state("");
 
-	/** セクションのDOM要素を取得 */
-	function getSectionElement(label: string): HTMLDivElement | null {
-		return tabContainer?.querySelector(`[data-section="${label}"]`) ?? null;
-	}
-
-	// ストアの購読
+	// ストアを購読（$effect不要）
 	paletteSectionsStore.subscribe((s) => { sections = s; });
 	paletteStore.subscribe((p) => { flatList = p; });
-	selectedEmojiStore.subscribe((s) => { selected = s; });
-
-	/** 絵文字が存在するかチェック */
-	function hasEmojis(): boolean {
-		return flatList.length > 0 || sections.some((s) => s.emojis.length > 0);
+	
+	/** 絵文字が選択されているかチェックする（リアクティブ） */
+	function isSelected(emoji: PaletteEmoji): boolean {
+		return $selectedEmojiStore?.shortcode === emoji.shortcode;
 	}
 
 	function toggleEmoji(emoji: PaletteEmoji): void {
 		selectEmoji(emoji);
 	}
 
-	/** 絵文字が選択されているかチェックする */
-	function isSelected(emoji: PaletteEmoji): boolean {
-		return selected?.shortcode === emoji.shortcode;
-	}
-
 	/** タブをクリックしたときに該当セクションにスクロール */
-	function scrollToSection(sectionId: string): void {
-		const el = getSectionElement(sectionId);
+	function scrollToSection(sectionLabel: string): void {
+		if (!tabContainer) return;
+		// タブナビゲーションの外侧の emoji-list 内から検索
+		const emojiList = tabContainer.querySelector(".emoji-list");
+		if (!emojiList) return;
+		const el = emojiList.querySelector(`[data-section="${sectionLabel}"]`);
 		if (el) {
 			el.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
+	}
+
+	/** セクションラベルを画面幅に合わせてtruncate */
+	function truncateLabel(label: string, maxWidth: number = 180): string {
+		if (label.length <= 20) return label;
+		// 15文字+"..."+4文字で表示
+		return label.slice(0, 15) + "..." + label.slice(-4);
+	}
+
+	/** 絵文字が存在するかチェック */
+	function hasEmojis(): boolean {
+		return flatList.length > 0 || sections.some((s) => s.emojis.length > 0);
 	}
 
 	/** スクロールスパイ：現在表示中のセクションを判定 */
@@ -64,36 +68,24 @@
 	});
 </script>
 
-<div class="palette-container">
+<div class="palette-container" bind:this={tabContainer}>
 	{#if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
 		<!-- タブナビゲーション（セクションがある場合のみ表示） -->
 		{#if sections.length > 0}
-			<div class="tab-nav" bind:this={tabContainer}>
+			<div class="tab-nav">
 				{#each sections as section}
 					<button
 						class={"tab-btn" + (activeSection === section.label ? " active" : "")}
 						onclick={() => scrollToSection(section.label)}
 						data-section={section.label}
+						title={section.label}
 					>
-						{section.label}
+						{truncateLabel(section.label)}
 					</button>
 				{/each}
 			</div>
-		{/if}
-
-		<!-- 選択中絵文字プレビュー -->
-		{#if selected}
-			<div class="preview">
-				<img src={selected.url} alt={selected.shortcode} />
-				<span class="preview-shortcode">:{selected.shortcode}:</span>
-			</div>
-		{/if}
-
-		<!-- 選択解除ボタン -->
-		{#if selected}
-			<button class="deselect-btn" onclick={deselectEmoji}>選択解除</button>
 		{/if}
 
 		<!-- セクション付き絵文字リスト -->
@@ -142,7 +134,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		max-height: 100%;
+		height: 100%;
 	}
 
 	.palette-title {
@@ -187,47 +179,13 @@
 		margin-bottom: -1px;
 	}
 
-	.preview {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 4px;
-		padding: 12px;
-		background: #f5f5f5;
-		border-radius: 4px;
-	}
-
-	.preview img {
-		width: 64px;
-		height: 64px;
-		object-fit: contain;
-	}
-
-	.preview-shortcode {
-		font-family: monospace;
-		font-size: 14px;
-		color: #555;
-	}
-
-	.deselect-btn {
-		padding: 6px 12px;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		background: white;
-		cursor: pointer;
-		font-size: 14px;
-	}
-
-	.deselect-btn:hover {
-		background: #f0f0f0;
-	}
-
 	.emoji-list {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		overflow-y: auto;
 		flex: 1;
+		overflow-y: auto;
+		min-height: 0;
 	}
 
 	.section {

@@ -5,8 +5,8 @@
 	import { pubkeyStore, isLoggedInStore } from "$lib/stores";
 	import { loadGrid, loadPalette as loadPaletteStorage, loadNullEmoji } from "$lib/storage";
 	import "$lib/stores/persistence";
-	import { fetchPaletteEmojis } from "$lib/nostr/fetchPalette";
-	import { loadPalette as loadPaletteStore } from "$lib/stores/palette";
+	import { fetchPaletteSections } from "$lib/nostr/fetchPalette";
+	import { loadPaletteSections } from "$lib/stores/palette";
 
 	let { children } = $props();
 
@@ -54,11 +54,11 @@
 						.then((pubkey: string) => {
 							console.log("Logged in with pubkey:", pubkey);
 							pubkeyStore.set(pubkey);
-							// パレット絵文字を取得
-							fetchPaletteEmojis(pubkey)
-								.then((emojis) => {
-									console.log("Palette loaded:", emojis.length, "emojis");
-									loadPaletteStore(emojis);
+							// パレット絵文字をセクション付きで取得
+							fetchPaletteSections(pubkey)
+								.then((sections) => {
+									console.log("Palette sections loaded:", sections.length, "sections");
+									loadPaletteSections(sections);
 								})
 								.catch((err) => {
 									console.error("Failed to fetch palette:", err);
@@ -70,7 +70,7 @@
 				}
 			} else if (detail?.type === "logout") {
 				pubkeyStore.set(null);
-				loadPaletteStore([]);
+				loadPaletteSections([]);
 			}
 		};
 
