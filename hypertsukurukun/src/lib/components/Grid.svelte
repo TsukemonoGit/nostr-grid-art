@@ -26,15 +26,14 @@
 	function handleCellClick(row: number, col: number, e: MouseEvent): void {
 		const cell = grid[row]?.[col] ?? null;
 
-		// コンテキストメニューが既に開いている場合は閉じる
-		if (contextMenu) {
-			contextMenu = null;
-		}
+		console.log('[Grid] handleCellClick:', { row, col, cell, selectedEmoji });
 
 		// 絵文字選択中の場合
 		if (selectedEmoji) {
+			console.log('[Grid] 絵文字選択中');
+			// 絵文字選択中: 空セル → 配置
 			if (!cell) {
-				// GRID-04: 空セル → 絵文字を配置
+				console.log('[Grid] 空セル → 配置');
 				const tag: EmojiTag = [
 					"emoji",
 					selectedEmoji.shortcode,
@@ -42,11 +41,16 @@
 					selectedEmoji.ref,
 				];
 				setCell(row, col, tag);
-			} else if (cell[1] === selectedEmoji.shortcode) {
-				// GRID-06: 同じ絵文字 → コンテキストメニューを表示
+			}
+			// 絵文字選択中: 同じ絵文字 → コンテキストメニュー表示
+			else if (cell[1] === selectedEmoji.shortcode) {
+				console.log('[Grid] 同じ絵文字 → コンテキストメニュー表示');
 				contextMenu = { row, col, x: e.clientX, y: e.clientY };
-			} else {
-				// GRID-05: 別の絵文字 → 上書き
+				console.log('[Grid] contextMenu 設定:', contextMenu);
+			}
+			// 絵文字選択中: 別の絵文字 → 上書き
+			else {
+				console.log('[Grid] 別の絵文字 → 上書き');
 				const tag: EmojiTag = [
 					"emoji",
 					selectedEmoji.shortcode,
@@ -56,12 +60,17 @@
 				setCell(row, col, tag);
 			}
 		} else {
-			// 選択解除中の場合
+			console.log('[Grid] 選択解除中');
+			// 選択解除中: 配置済みセル → コンテキストメニュー表示
 			if (cell) {
-				// GRID-07: 配置済みセル → コンテキストメニューを表示
+				console.log('[Grid] 配置済みセル → コンテキストメニュー表示');
 				contextMenu = { row, col, x: e.clientX, y: e.clientY };
+				console.log('[Grid] contextMenu 設定:', contextMenu);
 			}
-			// GRID-08: 空セル → 何もしない
+			// 選択解除中: 空セル → 何もしない
+			else {
+				console.log('[Grid] 空セル → 何もしない');
+			}
 		}
 	}
 
@@ -223,7 +232,10 @@
 										class="cell"
 										role="gridcell"
 										aria-label={cell ? `絵文字 ${cell[1]}` : "空セル"}
-										onclick={(e) => handleCellClick(rowIndex, colIndex, e)}
+										onclick={(e) => {
+									e.stopPropagation();
+									handleCellClick(rowIndex, colIndex, e);
+								}}
 									>{#if cell && cell[0] === "emoji"}
 											<img src={cell[2]} alt={cell[1]} loading="lazy" />{/if}</td>
 								{/each}
@@ -300,7 +312,7 @@
 				role="menuitem"
 				onclick={() => useAsSelected(cm.row, cm.col)}
 			>
-				選択
+				パレットにコピー
 			</button>
 		</div>
 	{/if}
