@@ -81,8 +81,8 @@
 		closeContextMenu();
 	}
 
-	/** セルの絵文字をパレットにコピーする（CTX-02） */
-	function copyToPalette(row: number, col: number): void {
+	/** セルの絵文字を選択として使用（CTX-02: その絵文字を選択中に設定） */
+	function useAsSelected(row: number, col: number): void {
 		const cell = grid[row]?.[col];
 		if (!cell || cell[0] !== "emoji") return;
 
@@ -168,104 +168,120 @@
 </script>
 
 <div class="grid-wrapper" onclick={handleBackgroundClick} tabindex="0" onkeydown={handleKeydown} aria-label="絵文字グリッド">
-	<!-- 上端＋ボタン（RSZ-04） -->
-	<div class="resize-controls top">
-		<button
-			class="add-btn"
-			onclick={handleAddRowTop}
-			disabled={grid.length >= GRID_MAX_ROWS}
-			aria-label="上に行を追加"
-		>
-			▲
-		</button>
-	</div>
+	<!-- グリッドエリア（上下左右に＋/−ボタン付き） -->
+	<div class="grid-outer">
+		<!-- 上端：行追加/削除ボタン -->
+		<div class="resize-bar top">
+			<button
+				class="resize-btn remove"
+				onclick={() => handleDeleteRow(0)}
+				disabled={grid.length <= 1}
+				aria-label="上端の行を削除"
+			>
+				−
+			</button>
+			<button
+				class="resize-btn add"
+				onclick={handleAddRowTop}
+				disabled={grid.length >= GRID_MAX_ROWS}
+				aria-label="上に行を挿入"
+			>
+				+
+			</button>
+		</div>
 
-	<!-- 左端＋ボタン（RSZ-05） -->
-	<div class="resize-controls left">
-		<button
-			class="add-btn"
-			onclick={handleAddColLeft}
-			disabled={grid[0]?.length >= GRID_MAX_COLS}
-			aria-label="左に列を追加"
-		>
-			◀
-		</button>
-	</div>
+		<!-- 中央エリア：左端＋グリッド -->
+		<div class="grid-center">
+			<!-- 左端：列追加/削除ボタン -->
+			<div class="resize-bar left">
+				<button
+					class="resize-btn remove"
+					onclick={() => handleDeleteCol(0)}
+					disabled={grid[0]?.length <= 1}
+					aria-label="左端の列を削除"
+				>
+					−
+				</button>
+				<button
+					class="resize-btn add"
+					onclick={handleAddColLeft}
+					disabled={grid[0]?.length >= GRID_MAX_COLS}
+					aria-label="左に列を挿入"
+				>
+					+
+				</button>
+			</div>
 
-	<div class="grid-scroll-container" bind:this={scrollContainer}>
-		<table class="grid">
-			<thead>
-				<tr>
-					<th class="corner"></th>
-					{#each grid[0] as _, colIndex}
-						<th class="col-header">
-							<button
-								class="delete-col-btn"
-								onclick={() => handleDeleteCol(colIndex)}
-								aria-label={`${colIndex + 1}列目を削除`}
-							>
-								✕
-							</button>
-						</th>
-					{/each}
-					<th class="col-header add-col">
-						<button
-							class="add-btn"
-							onclick={handleAddColRight}
-							disabled={grid[0]?.length >= GRID_MAX_COLS}
-							aria-label="右に列を追加"
-						>
-							+
-						</button>
-					</th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each grid as row, rowIndex}
-					<tr>
-						<td class="row-header">
-							<button
-								class="delete-row-btn"
-								onclick={() => handleDeleteRow(rowIndex)}
-								aria-label={`${rowIndex + 1}行目を削除`}
-							>
-								✕
-							</button>
-						</td>
-						{#each row as cell, colIndex}
-							<td
-								class="cell"
-								role="gridcell"
-								aria-label={cell ? `絵文字 ${cell[1]}` : "空セル"}
-								onclick={(e) => handleCellClick(rowIndex, colIndex, e)}
-							>
-								{#if cell && cell[0] === "emoji"}
-									<img src={cell[2]} alt={cell[1]} loading="lazy" />
-								{/if}
-							</td>
+			<!-- グリッド本体 -->
+			<div class="grid-scroll-container" bind:this={scrollContainer}>
+				<table class="grid">
+					<tbody>
+						{#each grid as row, rowIndex}
+							<tr>
+								{#each row as cell, colIndex}
+									<td
+										class="cell"
+										role="gridcell"
+										aria-label={cell ? `絵文字 ${cell[1]}` : "空セル"}
+										onclick={(e) => handleCellClick(rowIndex, colIndex, e)}
+									>
+										{#if cell && cell[0] === "emoji"}
+											<img src={cell[2]} alt={cell[1]} loading="lazy" />
+										{/if}
+									</td>
+								{/each}
+							</tr>
 						{/each}
-					</tr>
-				{/each}
-			</tbody>
-			<tfoot>
-				<tr>
-					<th class="corner"></th>
-					{#each grid[0] ?? [] as _, colIndex}
-						<th class="col-footer"></th>
-					{/each}
-					<th class="col-footer add-row-footer">
-						<button
-							class="add-btn"
-							onclick={handleAddRowBottom}
-							disabled={grid.length >= GRID_MAX_ROWS}
-							aria-label="下に行を追加"
-						>
-							+
-						</button>
-					</th>
-				</tr>
-			</tfoot>
-		</table>
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- 右端：列追加/削除ボタン -->
+		<div class="resize-bar right">
+			<button
+				class="resize-btn remove"
+				onclick={() => {
+					const cols = grid[0]?.length ?? 0;
+					handleDeleteCol(cols - 1);
+				}}
+				disabled={grid[0]?.length <= 1}
+				aria-label="右端の列を削除"
+			>
+				−
+			</button>
+			<button
+				class="resize-btn add"
+				onclick={handleAddColRight}
+				disabled={grid[0]?.length >= GRID_MAX_COLS}
+				aria-label="右に列を追加"
+			>
+				+
+			</button>
+		</div>
+	</div>
+
+	<!-- 下端：行追加/削除ボタン -->
+	<div class="resize-bar bottom">
+		<button
+			class="resize-btn remove"
+			onclick={() => {
+				const rows = grid.length;
+				handleDeleteRow(rows - 1);
+			}}
+			disabled={grid.length <= 1}
+			aria-label="下端の行を削除"
+		>
+			−
+		</button>
+		<button
+			class="resize-btn add"
+			onclick={handleAddRowBottom}
+			disabled={grid.length >= GRID_MAX_ROWS}
+			aria-label="下に行を追加"
+		>
+			+
+		</button>
 	</div>
 
 	{#if contextMenu}
@@ -277,18 +293,18 @@
 			aria-label="コンテキストメニュー"
 		>
 			<button
-				class="context-menu-item"
+				class="context-menu-item delete"
 				role="menuitem"
 				onclick={() => deleteCell(cm.row, cm.col)}
 			>
 				削除
 			</button>
 			<button
-				class="context-menu-item"
+				class="context-menu-item select"
 				role="menuitem"
-				onclick={() => copyToPalette(cm.row, cm.col)}
+				onclick={() => useAsSelected(cm.row, cm.col)}
 			>
-				パレットにコピー
+				選択
 			</button>
 		</div>
 	{/if}
@@ -314,17 +330,83 @@
 		outline: none;
 	}
 
-	.resize-controls {
+	/* グリッド外面（上下のresize-barと中央エリアを配置） */
+	.grid-outer {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.grid-center {
 		display: flex;
 	}
 
-	.resize-controls.top {
-		justify-content: flex-end;
+	/* 上下のresize-bar */
+	.resize-bar {
+		display: flex;
+		justify-content: center;
+		gap: 4px;
+	}
+
+	.resize-bar.top {
 		margin-bottom: 4px;
 	}
 
-	.resize-controls.left {
+	.resize-bar.bottom {
+		margin-top: 4px;
+	}
+
+	/* 左右のresize-bar */
+	.resize-bar.left,
+	.resize-bar.right {
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+	}
+
+	.resize-bar.left {
 		margin-right: 4px;
+	}
+
+	.resize-bar.right {
+		margin-left: 4px;
+	}
+
+	/* リサイズボタン共通 */
+	.resize-btn {
+		width: 32px;
+		height: 32px;
+		border: none;
+		border-radius: 4px;
+		font-size: 20px;
+		font-weight: bold;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background 0.2s;
+	}
+
+	.resize-btn.add {
+		background: #ffab91;
+		color: #bf360c;
+	}
+
+	.resize-btn.add:hover:not(:disabled) {
+		background: #ff8a65;
+	}
+
+	.resize-btn.remove {
+		background: #ffcdd2;
+		color: #c62828;
+	}
+
+	.resize-btn.remove:hover:not(:disabled) {
+		background: #ef9a9a;
+	}
+
+	.resize-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
 	}
 
 	.grid-scroll-container {
@@ -336,38 +418,6 @@
 		border-collapse: collapse;
 	}
 
-	.corner {
-		width: 32px;
-		height: 20px;
-		border: none;
-		background: transparent;
-	}
-
-	th, td {
-		padding: 0;
-		border: 1px solid #e0e0e0;
-	}
-
-	th {
-		background: #f0f0f0;
-	}
-
-	.col-header, .col-footer {
-		min-width: var(--cell-size, 48px);
-		width: var(--cell-size, 48px);
-		text-align: center;
-	}
-
-	.row-header {
-		min-width: 32px;
-		width: 32px;
-		text-align: center;
-	}
-
-	.add-col, .add-row-footer {
-		background: #e8f5e9;
-	}
-
 	.cell {
 		width: var(--cell-size, 48px);
 		height: var(--cell-size, 48px);
@@ -377,6 +427,7 @@
 		text-align: center;
 		cursor: pointer;
 		background: #fafafa;
+		border: 1px solid #e0e0e0;
 	}
 
 	.cell img {
@@ -386,58 +437,18 @@
 	}
 
 	.cell:hover {
-		background: #f0f0f0;
-	}
-
-	.add-btn {
-		width: 24px;
-		height: 24px;
-		border: 1px solid #81c784;
-		border-radius: 4px;
-		background: #e8f5e9;
-		color: #2e7d32;
-		font-size: 16px;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.add-btn:hover:not(:disabled) {
-		background: #c8e6c9;
-	}
-
-	.add-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-
-	.delete-row-btn, .delete-col-btn {
-		width: 20px;
-		height: 20px;
-		border: none;
-		border-radius: 3px;
-		background: #ffcdd2;
-		color: #c62828;
-		font-size: 12px;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.delete-row-btn:hover, .delete-col-btn:hover {
-		background: #ef9a9a;
+		background: #e0f7fa;
 	}
 
 	.context-menu {
 		position: fixed;
-		background: white;
-		border: 1px solid #ccc;
+		background: #00bcd4;
+		border: none;
 		border-radius: 4px;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 		z-index: 1000;
-		min-width: 120px;
+		min-width: 100px;
+		padding: 4px;
 	}
 
 	.context-menu-item {
@@ -445,14 +456,37 @@
 		width: 100%;
 		padding: 8px 12px;
 		border: none;
-		background: none;
-		text-align: left;
+		background: rgba(255, 255, 255, 0.2);
+		color: white;
+		text-align: center;
 		cursor: pointer;
 		font-size: 14px;
+		border-radius: 2px;
+		margin-bottom: 2px;
+	}
+
+	.context-menu-item:last-child {
+		margin-bottom: 0;
 	}
 
 	.context-menu-item:hover {
-		background: #f0f0f0;
+		background: rgba(255, 255, 255, 0.4);
+	}
+
+	.context-menu-item.delete {
+		background: rgba(0, 0, 0, 0.15);
+	}
+
+	.context-menu-item.delete:hover {
+		background: rgba(0, 0, 0, 0.3);
+	}
+
+	.context-menu-item.select {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	.context-menu-item.select:hover {
+		background: rgba(255, 255, 255, 0.5);
 	}
 
 	.keyboard-btn {
@@ -468,31 +502,14 @@
 		cursor: pointer;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 		z-index: 999;
-		display: none;
 	}
 
-	/* スマホ向けに表示 */
+	/* スマホ向けにキーボードボタンを表示 */
 	@media (max-width: 768px) {
 		.keyboard-btn {
 			display: flex;
 			align-items: center;
 			justify-content: center;
-		}
-
-		.delete-row-btn, .delete-col-btn {
-			display: flex;
-		}
-	}
-
-	/* PCではホバー時のみ削除ボタンを表示 */
-	@media (min-width: 769px) {
-		.delete-row-btn, .delete-col-btn {
-			display: none;
-		}
-
-		.row-header:hover .delete-row-btn,
-		.col-header:hover .delete-col-btn {
-			display: flex;
 		}
 	}
 </style>

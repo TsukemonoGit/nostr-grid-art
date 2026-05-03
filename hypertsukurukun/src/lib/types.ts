@@ -23,3 +23,11 @@ export interface NullEmojiConfig {
 	type: "custom" | "fullwidth_space";
 	emoji?: PaletteEmoji; // type === "custom" の場合
 }
+
+// スクロールスパイ型タブUI用のパレットセクション
+export interface PaletteSection {
+	// セクションの見出し（例: "みんなの30030絵文字セット"）
+	label: string;
+	// このセクションに所属する絵文字リスト
+	emojis: PaletteEmoji[];
+}

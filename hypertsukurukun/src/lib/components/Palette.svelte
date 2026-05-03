@@ -1,13 +1,22 @@
 <script lang="ts">
-	import { paletteStore, selectedEmojiStore, selectEmoji, deselectEmoji } from "$lib/stores";
-	import type { PaletteEmoji } from "$lib/types";
+	import { paletteSectionsStore, paletteStore, selectedEmojiStore, selectEmoji, deselectEmoji } from "$lib/stores";
+	import type { PaletteEmoji, PaletteSection } from "$lib/types";
 
-	let palette = $state<PaletteEmoji[]>([]);
+	let sections = $state<PaletteSection[]>([]);
+	let flatList = $state<PaletteEmoji[]>([]);
 	let selected = $state<PaletteEmoji | null>(null);
+	let tabContainer: HTMLDivElement | null = null;
+	let sectionRefs = new Map<string, HTMLDivElement>();
+
+	$effect(() => {
+		paletteSectionsStore.subscribe((s) => {
+			sections = s;
+		});
+	});
 
 	$effect(() => {
 		paletteStore.subscribe((p) => {
-			palette = p;
+			flatList = p;
 		});
 	});
 
@@ -17,6 +26,11 @@
 		});
 	});
 
+	/** 絵文字が存在するかチェック */
+	function hasEmojis(): boolean {
+		return flatList.length > 0 || sections.some((s) => s.emojis.length > 0);
+	}
+
 	function toggleEmoji(emoji: PaletteEmoji): void {
 		selectEmoji(emoji);
 	}
@@ -25,36 +39,118 @@
 	function isSelected(emoji: PaletteEmoji): boolean {
 		return selected?.shortcode === emoji.shortcode;
 	}
+
+	/** タブをクリックしたときに該当セクションにスクロール */
+	function scrollToSection(sectionId: string): void {
+		const el = sectionRefs.get(sectionId);
+		if (el) {
+			el.scrollIntoView({ behavior: "smooth", block: "start" });
+		}
+	}
+
+	/** スクロールスパイ：現在表示中のセクションを判定 */
+	function updateActiveSection(): void {
+		if (!tabContainer || sections.length === 0) return;
+
+		const containerRect = tabContainer.getBoundingClientRect();
+		const triggerPoint = containerRect.top + 80; // 上から80pxの位置
+
+		let activeId = "";
+		for (const section of sections) {
+			const el = sectionRefs.get(section.label);
+			if (!el) continue;
+
+			const rect = el.getBoundingClientRect();
+			if (rect.bottom > triggerPoint) {
+				activeId = section.label;
+				break;
+			}
+		}
+
+		// 最後のセクションまでスクロールした場合は最後のセクションをアクティブに
+		if (!activeId && sections.length > 0) {
+			activeId = sections[sections.length - 1].label;
+		}
+
+		activeSection = activeId;
+	}
+
+	let activeSection = $state("");
+
+	$effect(() => {
+		if (!tabContainer) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (entry.isIntersecting) {
+						activeSection = entry.target.getAttribute("data-section") ?? "";
+					}
+				}
+			},
+			{ root: tabContainer, threshold: 0.3 },
+		);
+
+		for (const [, el] of sectionRefs) {
+			observer.observe(el);
+		}
+
+		return () => observer.disconnect();
+	});
 </script>
 
 <div class="palette-container">
-	<h3 class="palette-title">パレット</h3>
+	{#if hasEmojis()}
+		<h3 class="palette-title">パレット</h3>
 
-	<!-- 選択中絵文字プレビュー -->
-	{#if selected}
-		<div class="preview">
-			<img src={selected.url} alt={selected.shortcode} />
-			<span class="preview-shortcode">:{selected.shortcode}:</span>
+		<!-- タブナビゲーション（スクロールスパイ） -->
+		<div class="tab-nav" bind:this={tabContainer}>
+			{#each sections as section}
+				<button
+					class={"tab-btn" + (activeSection === section.label ? " active" : "")}
+					onclick={() => scrollToSection(section.label)}
+					data-section={section.label}
+				>
+					{section.label}
+				</button>
+			{/each}
+		</div>
+
+		<!-- 選択中絵文字プレビュー -->
+		{#if selected}
+			<div class="preview">
+				<img src={selected.url} alt={selected.shortcode} />
+				<span class="preview-shortcode">:{selected.shortcode}:</span>
+			</div>
+		{/if}
+
+		<!-- 選択解除ボタン -->
+		{#if selected}
+			<button class="deselect-btn" onclick={deselectEmoji}>選択解除</button>
+		{/if}
+
+		<!-- セクション付き絵文字リスト -->
+		<div class="emoji-list">
+			{#each sections as section}
+				<div class="section" data-section={section.label} bind:this={el}>
+					{#if section.emojis.length > 0}
+						<h4 class="section-title">{section.label}</h4>
+						<div class="emoji-grid">
+							{#each section.emojis as emoji}
+								<button
+									class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
+									onclick={() => toggleEmoji(emoji)}
+									aria-label={`絵文字 ${emoji.shortcode} を選択`}
+								>
+									<img src={emoji.url} alt={emoji.shortcode} loading="lazy" />
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/each}
 		</div>
 	{/if}
-
-	<!-- 選択解除ボタン -->
-	{#if selected}
-		<button class="deselect-btn" onclick={deselectEmoji}>選択解除</button>
-	{/if}
-
-	<!-- 絵文字リスト -->
-	<div class="emoji-list">
-		{#each palette as emoji}
-			<button
-				class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
-				onclick={() => toggleEmoji(emoji)}
-				aria-label={`絵文字 ${emoji.shortcode} を選択`}
-			>
-				<img src={emoji.url} alt={emoji.shortcode} loading="lazy" />
-			</button>
-		{/each}
-	</div>
 </div>
 
 <style>
@@ -62,12 +158,49 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		max-height: 100%;
 	}
 
 	.palette-title {
 		margin: 0;
 		font-size: 16px;
 		font-weight: 600;
+	}
+
+	/* タブナビゲーション */
+	.tab-nav {
+		display: flex;
+		gap: 4px;
+		overflow-x: auto;
+		padding: 4px 0;
+		border-bottom: 1px solid #e0e0e0;
+	}
+
+	.tab-btn {
+		flex-shrink: 0;
+		padding: 6px 12px;
+		border: none;
+		border-radius: 4px 4px 0 0;
+		background: #f5f5f5;
+		color: #666;
+		font-size: 12px;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background 0.2s, color 0.2s;
+	}
+
+	.tab-btn:hover {
+		background: #e0e0e0;
+		color: #333;
+	}
+
+	.tab-btn.active {
+		background: white;
+		color: #0066cc;
+		font-weight: 600;
+		border: 1px solid #e0e0e0;
+		border-bottom: 1px solid white;
+		margin-bottom: -1px;
 	}
 
 	.preview {
@@ -107,10 +240,29 @@
 
 	.emoji-list {
 		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		overflow-y: auto;
+		flex: 1;
+	}
+
+	.section {
+		padding: 4px 0;
+	}
+
+	.section-title {
+		margin: 0 0 8px 0;
+		font-size: 13px;
+		font-weight: 600;
+		color: #555;
+		padding-bottom: 4px;
+		border-bottom: 1px solid #eee;
+	}
+
+	.emoji-grid {
+		display: flex;
 		flex-wrap: wrap;
 		gap: 4px;
-		max-height: 400px;
-		overflow-y: auto;
 	}
 
 	.emoji-item {

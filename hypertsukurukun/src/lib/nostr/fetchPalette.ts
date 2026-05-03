@@ -1,6 +1,6 @@
 import { createRxNostr, createRxBackwardReq } from "rx-nostr";
 import type { Event as NostrEvent, Filter } from "nostr-typedef";
-import type { PaletteEmoji } from "$lib/types";
+import type { PaletteEmoji, PaletteSection } from "$lib/types";
 import { BOOTSTRAP_RELAYS } from "$lib/constants";
 
 /** rx-nostrのシングルトンインスタンス */
@@ -204,6 +204,128 @@ async function fetchKind30030(
 }
 
 /**
+ * ステップ4（セクション版）: 絵文字をセクションごとに収集・衝突解消する
+ * 各30030(identifier)ごとと、ノラ絵文字のセクションに分ける
+ */
+function collectAndResolveAsSections(
+	kind30030Results: Array<{ identifier: string; event: NostrEvent; relayHints: string[] }>,
+	kind10030Event: NostrEvent,
+): PaletteSection[] {
+	/** shortcodeを許可された文字のみでクリーニングする（NIP-30準拠） */
+	function cleanShortcode(s: string): string {
+		return s.replace(/[^a-zA-Z0-9_-]/g, "_");
+	}
+
+	/** 'emoji' タグをイベントから抽出し、衝突解消を適用する */
+	function resolveEmojisFromEvent(
+		event: NostrEvent,
+		refPrefix: string,
+		pubkey: string,
+	): PaletteEmoji[] {
+		const shortcodeMap = new Map<string, PaletteEmoji[]>();
+
+		for (const tag of event.tags) {
+			if (
+				Array.isArray(tag) &&
+				tag.length >= 3 &&
+				tag[0] === "emoji" &&
+				typeof tag[1] === "string" &&
+				typeof tag[2] === "string"
+			) {
+				const [, rawShortcode, url] = tag;
+				const shortcode = cleanShortcode(rawShortcode);
+
+				const entry: PaletteEmoji = {
+					shortcode,
+					url,
+					originalShortcode: rawShortcode,
+				};
+
+				if (refPrefix) {
+					entry.ref = `${refPrefix}${pubkey}:`;
+				}
+
+				if (!shortcodeMap.has(shortcode)) {
+					shortcodeMap.set(shortcode, []);
+				}
+				shortcodeMap.get(shortcode)!.push(entry);
+			}
+		}
+
+		// 衝突解消: pubkeyでソートして先勝ち、後続にはsuffix付与
+		const result: PaletteEmoji[] = [];
+		const usedShortcodes = new Set<string>();
+
+		for (const [, entries] of shortcodeMap) {
+			entries.sort((a, b) => {
+				const aPubkey = a.ref?.split(":")[1] ?? "";
+				const bPubkey = b.ref?.split(":")[1] ?? "";
+				return aPubkey.localeCompare(bPubkey);
+			});
+
+			const winner = entries[0];
+			if (!usedShortcodes.has(winner.shortcode)) {
+				usedShortcodes.add(winner.shortcode);
+				result.push(winner);
+			} else {
+				let suffix = 2;
+				let newShortcode = `${winner.shortcode}_${suffix}`;
+				while (usedShortcodes.has(newShortcode)) {
+					suffix++;
+					newShortcode = `${winner.shortcode}_${suffix}`;
+				}
+				usedShortcodes.add(newShortcode);
+				result.push({
+					...winner,
+					shortcode: newShortcode,
+				});
+			}
+		}
+
+		return result;
+	}
+
+	// 各30030(identifier)ごとにセクションを作成
+	const sections: PaletteSection[] = kind30030Results.map(({ identifier, event }) => {
+		const emojis = resolveEmojisFromEvent(event, "30030:", event.pubkey);
+		return {
+			label: identifier ? `${identifier}の30030絵文字セット` : " unnamed の30030絵文字セット",
+			emojis,
+		};
+	});
+
+	// ノラ絵文字（10030に直接のemojiタグ）を収集
+	const norapaintEmojis: PaletteEmoji[] = [];
+	for (const tag of kind10030Event.tags) {
+		if (
+			Array.isArray(tag) &&
+			tag.length >= 3 &&
+			tag[0] === "emoji" &&
+			typeof tag[1] === "string" &&
+			typeof tag[2] === "string"
+		) {
+			const [, rawShortcode, url] = tag;
+			const shortcode = cleanShortcode(rawShortcode);
+			norapaintEmojis.push({
+				shortcode,
+				url,
+				originalShortcode: rawShortcode,
+			});
+		}
+	}
+
+	// ノラ絵文字セクションを追加（空でない場合のみ）
+	if (norapaintEmojis.length > 0) {
+		sections.push({
+			label: "10030に直入れしている絵文字",
+			emojis: norapaintEmojis,
+		});
+	}
+
+	return sections;
+}
+
+/**
  * ステップ4: 絵文字を収集・衝突解消する
  */
 function collectAndResolve(
@@ -342,4 +464,27 @@ export async function fetchPaletteEmojis(pubkey: string): Promise<PaletteEmoji[]
 
 	// ステップ4: 絵文字を収集・衝突解消
 	return collectAndResolve(kind30030Results, kind10030);
+}
+
+/**
+ * pubkeyを使ってセクション付きパレット絵文字を取得する
+ * セクション: 各30030(identifier)ごと + ノラ絵文字まとめ
+ * @param pubkey ユーザーの公開鍵
+ * @returns PaletteSection[]
+ */
+export async function fetchPaletteSections(pubkey: string): Promise<PaletteSection[]> {
+	// ステップ1: readRelaysを収集
+	const readRelays = await collectReadRelays(pubkey);
+	if (readRelays.length === 0) {
+		throw new Error("10002 not found in bootstrap relays");
+	}
+
+	// ステップ2: kind 10030 を取得
+	const kind10030 = await fetchKind10030(readRelays, pubkey);
+
+	// ステップ3: kind 30030 を取得
+	const kind30030Results = await fetchKind30030(kind10030, readRelays);
+
+	// ステップ4: セクション付きで絵文字を収集・衝突解消
+	return collectAndResolveAsSections(kind30030Results, kind10030);
 }
