@@ -7,11 +7,17 @@
 	let tabContainer = $state<HTMLDivElement | null>(null);
 	let activeSection = $state("");
 	let searchQuery = $state("");
+	let isLoading = $state(true);
 
-	paletteSectionsStore.subscribe((s) => { sections = s; });
-	paletteStore.subscribe((p) => { flatList = p; });
+	paletteSectionsStore.subscribe((s) => {
+		sections = s;
+		if (s.length > 0) isLoading = false;
+	});
+	paletteStore.subscribe((p) => {
+		flatList = p;
+		if (p.length > 0) isLoading = false;
+	});
 
-	/** 検索フィルタ済みセクション */
 	let filteredSections = $derived(
 		searchQuery.trim() === ""
 			? sections
@@ -25,7 +31,6 @@
 				.filter((s) => s.emojis.length > 0),
 	);
 
-	/** 検索フィルタ済みフラットリスト */
 	let filteredFlatList = $derived(
 		searchQuery.trim() === ""
 			? flatList
@@ -85,10 +90,23 @@
 </script>
 
 <div class="palette-container" bind:this={tabContainer}>
-	{#if hasEmojis()}
+	{#if isLoading}
+		<!-- スケルトンローディング -->
+		<div class="skeleton-title shimmer"></div>
+		<div class="skeleton-search shimmer"></div>
+		<div class="skeleton-tabs">
+			{#each [80, 60, 100, 70] as w}
+				<div class="skeleton-tab shimmer" style="width: {w}px"></div>
+			{/each}
+		</div>
+		<div class="skeleton-grid">
+			{#each Array(20) as _}
+				<div class="skeleton-emoji shimmer"></div>
+			{/each}
+		</div>
+	{:else if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
-		<!-- 検索欄 -->
 		<input
 			class="search-input"
 			type="search"
@@ -96,7 +114,6 @@
 			bind:value={searchQuery}
 		/>
 
-		<!-- タブナビゲーション（検索中は非表示） -->
 		{#if sections.length > 0 && searchQuery.trim() === ""}
 			<div class="tab-nav">
 				{#each sections as section}
@@ -112,7 +129,6 @@
 			</div>
 		{/if}
 
-		<!-- セクション付き絵文字リスト -->
 		{#if filteredSections.length > 0}
 			<div class="emoji-list">
 				{#each filteredSections as section}
@@ -189,6 +205,52 @@
 		padding: 16px 0;
 	}
 
+	/* スケルトン */
+	@keyframes shimmer {
+		0% { background-position: -400px 0; }
+		100% { background-position: 400px 0; }
+	}
+
+	.shimmer {
+		background: linear-gradient(90deg, #ececec 25%, #f5f5f5 50%, #ececec 75%);
+		background-size: 800px 100%;
+		animation: shimmer 1.4s infinite linear;
+		border-radius: 4px;
+	}
+
+	.skeleton-title {
+		height: 20px;
+		width: 60px;
+	}
+
+	.skeleton-search {
+		height: 32px;
+		width: 100%;
+	}
+
+	.skeleton-tabs {
+		display: flex;
+		gap: 4px;
+		flex-wrap: wrap;
+	}
+
+	.skeleton-tab {
+		height: 28px;
+	}
+
+	.skeleton-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+
+	.skeleton-emoji {
+		width: var(--cell-size, 48px);
+		height: var(--cell-size, 48px);
+		border-radius: 4px;
+	}
+
+	/* タブ */
 	.tab-nav {
 		gap: 4px;
 		display: flex;
