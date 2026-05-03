@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { gridStore, selectedEmojiStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, removeRow, removeCol, rowHasEmoji, colHasEmoji, loadGrid ,isMobile} from "$lib/stores";
+	import { gridStore, selectedEmojiStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, removeRow, removeCol, rowHasEmoji, colHasEmoji, loadGrid ,isMobile, clearAll, undo, redo, canUndo, canRedo, getShowClearConfirm, setShowClearConfirm} from "$lib/stores";
 	import { selectEmoji } from "$lib/stores/palette";
 	import type { EmojiTag, PaletteEmoji, Grid } from "$lib/types";
 	import { GRID_MAX_ROWS, GRID_MAX_COLS } from "$lib/constants";
@@ -161,6 +161,25 @@
 		const input = document.getElementById("keyboard-input");
 		input?.focus();
 	}
+
+	/** 全消し処理 */
+	function handleClearAll(): void {
+		const shouldConfirm = getShowClearConfirm();
+		if (shouldConfirm && !confirm("グリッドを全消しします。よろしいですか？")) {
+			return;
+		}
+		clearAll();
+	}
+
+	/** 元に戻す */
+	function handleUndo(): void {
+		undo();
+	}
+
+	/** やり直す */
+	function handleRedo(): void {
+		redo();
+	}
 </script>
 
 <div class="grid-wrapper" role="grid" onclick={handleBackgroundClick} tabindex="0" onkeydown={handleKeydown} aria-label="絵文字グリッド">
@@ -276,6 +295,36 @@
 			aria-label="下に行を追加"
 		>
 			+
+		</button>
+	</div>
+
+	<!-- ツールバー -->
+	<div class="grid-toolbar">
+		<button
+			class="toolbar-btn undo"
+			onclick={handleUndo}
+			disabled={$canUndo ? undefined : true}
+			aria-label="元に戻す"
+			title="元に戻す"
+		>
+			↩
+		</button>
+		<button
+			class="toolbar-btn redo"
+			onclick={handleRedo}
+			disabled={$canRedo ? undefined : true}
+			aria-label="やり直す"
+			title="やり直す"
+		>
+			↪
+		</button>
+		<button
+			class="toolbar-btn clear"
+			onclick={handleClearAll}
+			aria-label="全消し"
+			title="全消し"
+		>
+			✕
 		</button>
 	</div>
 
@@ -411,6 +460,60 @@
 	}
 
 	.resize-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.grid-toolbar {
+		display: flex;
+		justify-content: center;
+		gap: 8px;
+		padding: 8px 0;
+		flex-shrink: 0;
+	}
+
+	.toolbar-btn {
+		width: 40px;
+		height: 40px;
+		border: none;
+		border-radius: 6px;
+		font-size: 20px;
+		font-weight: bold;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background 0.2s, opacity 0.2s;
+	}
+
+	.toolbar-btn.undo {
+		background: #b3e5fc;
+		color: #01579b;
+	}
+
+	.toolbar-btn.undo:hover:not(:disabled) {
+		background: #81d4fa;
+	}
+
+	.toolbar-btn.redo {
+		background: #b3e5fc;
+		color: #01579b;
+	}
+
+	.toolbar-btn.redo:hover:not(:disabled) {
+		background: #81d4fa;
+	}
+
+	.toolbar-btn.clear {
+		background: #ffcdd2;
+		color: #c62828;
+	}
+
+	.toolbar-btn.clear:hover:not(:disabled) {
+		background: #ef9a9a;
+	}
+
+	.toolbar-btn:disabled {
 		opacity: 0.3;
 		cursor: not-allowed;
 	}
