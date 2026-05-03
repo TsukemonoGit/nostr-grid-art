@@ -1,6 +1,7 @@
 import { writable, derived } from "svelte/store";
 import type { Grid, Cell } from "$lib/types";
 import { GRID_INITIAL_ROWS, GRID_INITIAL_COLS } from "$lib/constants";
+import { saveGrid } from "$lib/storage";
 
 /** 空のGridを生成する */
 function createGrid(rows: number, cols: number): Grid {
@@ -17,6 +18,7 @@ export function setCell(row: number, col: number, cell: Cell): void {
 		if (newGrid[row]) {
 			newGrid[row][col] = cell;
 		}
+		saveGrid(newGrid);
 		return newGrid;
 	});
 }
@@ -25,7 +27,9 @@ export function setCell(row: number, col: number, cell: Cell): void {
 export function addRowBottom(): void {
 	gridStore.update((grid) => {
 		const newRow = Array(grid[0]?.length ?? GRID_INITIAL_COLS).fill(null) as Cell[];
-		return [...grid, newRow];
+		const newGrid = [...grid, newRow];
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
@@ -33,41 +37,52 @@ export function addRowBottom(): void {
 export function addRowTop(): void {
 	gridStore.update((grid) => {
 		const newRow = Array(grid[0]?.length ?? GRID_INITIAL_COLS).fill(null) as Cell[];
-		return [newRow, ...grid];
+		const newGrid = [newRow, ...grid];
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
 /** 右端に列を1列追加する */
 export function addColRight(): void {
 	gridStore.update((grid) => {
-		return grid.map((row) => [...row, null]);
+		const newGrid = grid.map((row) => [...row, null]);
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
 /** 左端に列を1列挿入する */
 export function addColLeft(): void {
 	gridStore.update((grid) => {
-		return grid.map((row) => [null, ...row]);
+		const newGrid = grid.map((row) => [null, ...row]);
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
 /** 行を削除する（配置チェックはコンポーネント側で行う） */
 export function removeRow(row: number): void {
 	gridStore.update((grid) => {
-		return grid.filter((_, i) => i !== row);
+		const newGrid = grid.filter((_, i) => i !== row);
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
 /** 列を削除する（配置チェックはコンポーネント側で行う） */
 export function removeCol(col: number): void {
 	gridStore.update((grid) => {
-		return grid.map((row) => row.filter((_, i) => i !== col));
+		const newGrid = grid.map((row) => row.filter((_, i) => i !== col));
+		saveGrid(newGrid);
+		return newGrid;
 	});
 }
 
 /** グリッドをロードする */
 export function loadGrid(grid: Grid): void {
 	gridStore.set(grid);
+	saveGrid(grid);
 }
 
 /** 行に絵文字が配置されているかチェックする */

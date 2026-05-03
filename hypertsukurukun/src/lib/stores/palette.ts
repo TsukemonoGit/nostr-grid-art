@@ -1,5 +1,6 @@
 import { writable } from "svelte/store";
 import type { PaletteEmoji, PaletteSection } from "$lib/types";
+import { savePalette } from "$lib/storage";
 
 /** パレット絵文字リスト */
 export const paletteStore = writable<PaletteEmoji[]>([]);
@@ -36,6 +37,7 @@ export function loadPaletteSections(sections: PaletteSection[]): void {
 	// 全セクションの絵文字をフラットなリストにも保持
 	const all = sections.flatMap((s) => s.emojis);
 	paletteStore.set(all);
+	savePalette(all);
 }
 
 /** フラットなパレットリストからセクションを生成する */

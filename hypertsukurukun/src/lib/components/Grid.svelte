@@ -299,7 +299,7 @@
 				role="menuitem"
 				onclick={() => useAsSelected(cm.row, cm.col)}
 			>
-				パレットにコピー
+				選択
 			</button>
 		</div>
 	{/if}

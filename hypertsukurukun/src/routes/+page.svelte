@@ -16,7 +16,7 @@
 	<div class="mobile-layout">
 		<div class="mobile-header">
 			<LoginButton />
-			<div >
+			<div class="flex items-center gap-2">
 			{#if $selectedEmojiStore}
 				<button class="mobile-preview" onclick={deselectEmoji} title="選択解除">
 					<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />

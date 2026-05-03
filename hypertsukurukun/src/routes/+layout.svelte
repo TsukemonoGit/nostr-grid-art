@@ -5,7 +5,6 @@
 	import { gridStore, paletteStore, nullEmojiStore } from "$lib/stores";
 	import { pubkeyStore, isLoggedInStore } from "$lib/stores";
 	import { loadGrid, loadPalette as loadPaletteStorage, loadNullEmoji } from "$lib/storage";
-	import "$lib/stores/persistence";
 	import { fetchPaletteSections } from "$lib/nostr/fetchPalette";
 	import { loadPaletteSections } from "$lib/stores/palette";
 	import {isMobile} from "$lib/stores/isMobile";
