@@ -68,7 +68,7 @@
 	});
 </script>
 
-<div class="palette-container" bind:this={tabContainer}>
+<div class="palette-container">
 	{#if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
@@ -88,6 +88,7 @@
 			</div>
 		{/if}
 
+<div  bind:this={tabContainer}>
 		<!-- セクション付き絵文字リスト -->
 		{#if sections.length > 0}
 			<div class="emoji-list">
@@ -126,7 +127,7 @@
 				</div>
 			</div>
 		{/if}
-	{/if}
+</div>	{/if}
 </div>
 
 <style>
@@ -145,11 +146,11 @@
 
 	/* タブナビゲーション */
 	.tab-nav {
-		display: flex;
 		gap: 4px;
 		overflow-x: auto;
 		padding: 4px 0;
 		border-bottom: 1px solid #e0e0e0;
+		max-height:4em;
 	}
 
 	.tab-btn {
