@@ -6,12 +6,34 @@
 	let flatList = $state<PaletteEmoji[]>([]);
 	let tabContainer = $state<HTMLDivElement | null>(null);
 	let activeSection = $state("");
+	let searchQuery = $state("");
 
-	// ストアを購読（$effect不要）
 	paletteSectionsStore.subscribe((s) => { sections = s; });
 	paletteStore.subscribe((p) => { flatList = p; });
-	
-	/** 絵文字が選択されているかチェックする（リアクティブ） */
+
+	/** 検索フィルタ済みセクション */
+	let filteredSections = $derived(
+		searchQuery.trim() === ""
+			? sections
+			: sections
+				.map((s) => ({
+					...s,
+					emojis: s.emojis.filter((e) =>
+						e.shortcode.toLowerCase().includes(searchQuery.toLowerCase()),
+					),
+				}))
+				.filter((s) => s.emojis.length > 0),
+	);
+
+	/** 検索フィルタ済みフラットリスト */
+	let filteredFlatList = $derived(
+		searchQuery.trim() === ""
+			? flatList
+			: flatList.filter((e) =>
+				e.shortcode.toLowerCase().includes(searchQuery.toLowerCase()),
+			),
+	);
+
 	function isSelected(emoji: PaletteEmoji): boolean {
 		return $selectedEmojiStore?.shortcode === emoji.shortcode;
 	}
@@ -20,10 +42,8 @@
 		selectEmoji(emoji);
 	}
 
-	/** タブをクリックしたときに該当セクションにスクロール */
 	function scrollToSection(sectionLabel: string): void {
 		if (!tabContainer) return;
-		// タブナビゲーションの外侧の emoji-list 内から検索
 		const emojiList = tabContainer.querySelector(".emoji-list");
 		if (!emojiList) return;
 		const el = emojiList.querySelector(`[data-section="${sectionLabel}"]`);
@@ -32,19 +52,15 @@
 		}
 	}
 
-	/** セクションラベルを画面幅に合わせてtruncate */
 	function truncateLabel(label: string, maxWidth: number = 180): string {
 		if (label.length <= 20) return label;
-		// 15文字+"..."+4文字で表示
 		return label.slice(0, 15) + "..." + label.slice(-4);
 	}
 
-	/** 絵文字が存在するかチェック */
 	function hasEmojis(): boolean {
 		return flatList.length > 0 || sections.some((s) => s.emojis.length > 0);
 	}
 
-	/** スクロールスパイ：現在表示中のセクションを判定 */
 	$effect(() => {
 		if (!tabContainer) return;
 
@@ -72,8 +88,16 @@
 	{#if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
-		<!-- タブナビゲーション（セクションがある場合のみ表示） -->
-		{#if sections.length > 0}
+		<!-- 検索欄 -->
+		<input
+			class="search-input"
+			type="search"
+			placeholder="shortcodeで検索..."
+			bind:value={searchQuery}
+		/>
+
+		<!-- タブナビゲーション（検索中は非表示） -->
+		{#if sections.length > 0 && searchQuery.trim() === ""}
 			<div class="tab-nav">
 				{#each sections as section}
 					<button
@@ -89,9 +113,9 @@
 		{/if}
 
 		<!-- セクション付き絵文字リスト -->
-		{#if sections.length > 0}
+		{#if filteredSections.length > 0}
 			<div class="emoji-list">
-				{#each sections as section}
+				{#each filteredSections as section}
 					<div class="section" data-section={section.label}>
 						{#if section.emojis.length > 0}
 							<h4 class="section-title">{section.label}</h4>
@@ -110,11 +134,10 @@
 					</div>
 				{/each}
 			</div>
-		{:else}
-			<!-- フラットリスト（セクションなしのフォールバック） -->
+		{:else if filteredFlatList.length > 0}
 			<div class="emoji-list">
 				<div class="emoji-grid">
-					{#each flatList as emoji}
+					{#each filteredFlatList as emoji}
 						<button
 							class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
 							onclick={() => toggleEmoji(emoji)}
@@ -125,6 +148,8 @@
 					{/each}
 				</div>
 			</div>
+		{:else if searchQuery.trim() !== ""}
+			<div class="no-results">「{searchQuery}」に一致する絵文字はありません</div>
 		{/if}
 	{/if}
 </div>
@@ -143,15 +168,35 @@
 		font-weight: 600;
 	}
 
-	/* タブナビゲーション */
+	.search-input {
+		width: 100%;
+		padding: 6px 10px;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		font-size: 13px;
+		box-sizing: border-box;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: #0066cc;
+	}
+
+	.no-results {
+		font-size: 13px;
+		color: #888;
+		text-align: center;
+		padding: 16px 0;
+	}
+
 	.tab-nav {
 		gap: 4px;
-		display:flex;
-		flex-wrap:wrap;
+		display: flex;
+		flex-wrap: wrap;
 		overflow-x: auto;
 		padding: 4px 0;
 		border-bottom: 1px solid #e0e0e0;
-		max-height:6em;
+		max-height: 6em;
 	}
 
 	.tab-btn {
