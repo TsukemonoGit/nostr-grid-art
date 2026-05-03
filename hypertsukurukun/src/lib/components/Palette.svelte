@@ -68,7 +68,7 @@
 	});
 </script>
 
-<div class="palette-container">
+<div class="palette-container" bind:this={tabContainer}>
 	{#if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
@@ -88,7 +88,6 @@
 			</div>
 		{/if}
 
-<div  bind:this={tabContainer}>
 		<!-- セクション付き絵文字リスト -->
 		{#if sections.length > 0}
 			<div class="emoji-list">
@@ -127,7 +126,7 @@
 				</div>
 			</div>
 		{/if}
-</div>	{/if}
+	{/if}
 </div>
 
 <style>
