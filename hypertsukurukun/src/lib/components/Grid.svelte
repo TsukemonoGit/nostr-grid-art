@@ -317,31 +317,40 @@
 <button class="keyboard-btn" onclick={focusKeyboardInput} aria-label="キーボードモード">
 	⌨
 </button>
-
 <style>
 	.grid-wrapper {
 		position: relative;
-		overflow: visible;
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		width: 100%;
 		max-width: 100%;
+		min-height: 0;
 		outline: none;
 	}
 
-	/* グリッド外面（上下のresize-barと中央エリアを配置） */
 	.grid-outer {
 		display: flex;
 		flex-direction: column;
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		max-width: 100%;
 	}
 
 	.grid-center {
 		display: flex;
-		align-self: center;
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		overflow: hidden;
 	}
 
-	/* 上下のresize-bar */
 	.resize-bar {
 		display: flex;
 		justify-content: center;
 		gap: 4px;
+		flex-shrink: 0;
 	}
 
 	.resize-bar.top {
@@ -350,14 +359,15 @@
 
 	.resize-bar.bottom {
 		margin-top: 4px;
+		flex-shrink: 0;
 	}
 
-	/* 左右のresize-bar */
 	.resize-bar.left,
 	.resize-bar.right {
 		flex-direction: column;
 		justify-content: center;
 		gap: 4px;
+		flex-shrink: 0;
 	}
 
 	.resize-bar.left {
@@ -368,7 +378,6 @@
 		margin-left: 4px;
 	}
 
-	/* リサイズボタン共通 */
 	.resize-btn {
 		width: 32px;
 		height: 32px;
@@ -407,8 +416,10 @@
 	}
 
 	.grid-scroll-container {
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
 		overflow: auto;
-		max-width: 100%;
 	}
 
 	.grid {
@@ -416,12 +427,12 @@
 	}
 
 	.cell {
-		box-sizing: border-box;     
+		box-sizing: border-box;
 		width: var(--cell-size, 48px);
-		height: var(--cell-size, 48px) ;
+		height: var(--cell-size, 48px);
 		min-width: var(--cell-size, 48px);
 		min-height: var(--cell-size, 48px);
-		padding: 0;   
+		padding: 0;
 		vertical-align: middle;
 		text-align: center;
 		cursor: pointer;
@@ -431,12 +442,12 @@
 	}
 
 	.cell img {
-		display: block;  /* インライン descender 隙間を除去 */
+		display: block;
 		width: 100%;
 		height: 100%;
 		object-fit: contain;
-		margin:0;
-		padding:0;
+		margin: 0;
+		padding: 0;
 	}
 
 	.cell:hover {
@@ -507,7 +518,6 @@
 		z-index: 999;
 	}
 
-	/* スマホ向けにキーボードボタンを表示 */
 	@media (max-width: 768px) {
 		.keyboard-btn {
 			display: flex;

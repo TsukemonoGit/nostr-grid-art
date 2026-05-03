@@ -82,6 +82,7 @@
 <div class="output-panel">
 	<h3 class="output-title">出力</h3>
 
+	<div class="flex justify-center gap-2">
 	<!-- トリム後サイズ表示（OUT-03） -->
 	<div class="trimmed-size">
 		<span class="size-label">{trimmedSize.cols}列 × {trimmedSize.rows}行</span>
@@ -92,7 +93,7 @@
 
 	<!-- 投稿ボタン（OUT-09） -->
 	<button class="post-btn" onclick={postKind1}>kind 1で投稿</button>
-
+</div>
 	<!-- ステータス表示 -->
 	{#if copyStatus}
 		<div class="status success">{copyStatus}</div>
@@ -110,6 +111,7 @@
 		padding: 12px;
 		background: #f9f9f9;
 		border-radius: 4px;
+		margin-bottom:4em;
 	}
 
 	.output-title {
