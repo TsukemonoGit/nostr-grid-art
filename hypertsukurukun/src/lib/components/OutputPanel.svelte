@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { gridStore, nullEmojiStore } from "$lib/stores";
 	import { generateContent, generateTags, getTrimmedSize } from "$lib/output";
+	import { publishEvent, getDefaultRelays } from "$lib/nostr/fetchPalette";
 
 	let grid = $state<any[]>([]);
 	let nullConfig = $state<any>({});
@@ -23,58 +24,61 @@
 
 	/** contentをコピーする（OUT-08） */
 	async function copyContent(): Promise<void> {
+		if (trimmedSize.cols === 0 || trimmedSize.rows === 0) {
+			copyStatus = "グリッドが空です";
+			setTimeout(() => { copyStatus = ""; }, 2000);
+			return;
+		}
+
 		const content = generateContent(grid, nullConfig);
 		try {
 			await navigator.clipboard.writeText(content);
 			copyStatus = "コピーしました!";
-			setTimeout(() => {
-				copyStatus = "";
-			}, 2000);
+			setTimeout(() => { copyStatus = ""; }, 2000);
 		} catch {
 			copyStatus = "コピーに失敗しました";
-			setTimeout(() => {
-				copyStatus = "";
-			}, 2000);
+			setTimeout(() => { copyStatus = ""; }, 2000);
 		}
 	}
 
 	/** kind 1で投稿する（OUT-09） */
 	async function postKind1(): Promise<void> {
+		if (trimmedSize.cols === 0 || trimmedSize.rows === 0) {
+			postStatus = "エラー: グリッドが空です";
+			setTimeout(() => { postStatus = ""; }, 3000);
+			return;
+		}
+
 		postStatus = "投稿中...";
 
 		try {
-			// nostr-loginの確認: window.nostrがあるかチェック
 			if (typeof window === "undefined" || !(window as any).nostr) {
 				postStatus = "エラー: nostr拡張がインストールされていません";
-				setTimeout(() => {
-					postStatus = "";
-				}, 5000);
+				setTimeout(() => { postStatus = ""; }, 5000);
 				return;
 			}
 
 			const content = generateContent(grid, nullConfig);
 			const tags = generateTags(grid, nullConfig);
 
-			// kind 1イベントを作成
 			const event = {
 				kind: 1,
 				tags,
 				content,
-				created_at: Math.floor(Date.now() / 1000),
 			};
+			console.log(event);
+			console.log("relays:", getDefaultRelays());
 
-			// nostr-loginで署名して投稿
-			const nostr = (window as any).nostr;
-			const signedEvent = await nostr.signEvent(event);
-			// リレーに投稿（書き用リレーは実装次第）
-			// 現状では署名のみ実行
-			postStatus = "投稿完了（署名済み）";
+			const result = await publishEvent(event);
+			if (result) {
+				postStatus = "投稿完了（署名済み）";
+			} else {
+				postStatus = "投稿失敗";
+			}
 		} catch (e: any) {
 			postStatus = `エラー: ${e?.message ?? "不明なエラー"}`;
 		} finally {
-			setTimeout(() => {
-				postStatus = "";
-			}, 5000);
+			setTimeout(() => { postStatus = ""; }, 5000);
 		}
 	}
 </script>

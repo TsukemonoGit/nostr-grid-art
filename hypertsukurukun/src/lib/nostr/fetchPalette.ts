@@ -5,6 +5,7 @@ import type { PaletteEmoji, PaletteSection } from "$lib/types";
 import { BOOTSTRAP_RELAYS } from "$lib/constants";
 import { verifier } from "@rx-nostr/crypto";
 import { Subject } from "rxjs";
+import {type EventParameter} from "rx-nostr"
 
 /** rx-nostrのシングルトンインスタンス */
 const rx = createRxNostr({
@@ -13,25 +14,53 @@ const rx = createRxNostr({
 	verifier,
 });
 
+export async function publishEvent(ev: EventParameter): Promise<boolean> {
+	return new Promise((resolve) => {
+		let resolved = false;
+		const results: boolean[] = [];
+		let completed = false;
+
+		const sub = rx.send(ev).subscribe({
+			next: (packet) => {
+				console.log(
+					`Sending to ${packet.from} ${packet.ok ? "succeeded" : "failed"}.`,
+				);
+				if (packet.ok && !resolved) {
+					resolved = true;
+					sub.unsubscribe();
+					resolve(true);
+					return;
+				}
+				results.push(packet.ok);
+				if (completed && !resolved) {
+					resolved = true;
+					resolve(false);
+				}
+			},
+			complete: () => {
+				completed = true;
+				if (!resolved) {
+					resolved = true;
+					resolve(results.some(Boolean));
+				}
+			},
+			error: () => {
+				if (!resolved) {
+					resolved = true;
+					resolve(false);
+				}
+			},
+		});
+	});
+}
+
+
 /** 初期化: bootstrapリレーをread-onlyで設定 */
 rx.setDefaultRelays(
 	BOOTSTRAP_RELAYS.map((url) => ({ url, read: true, write: false })),
 );
 
-/**
- * read用リレーを設定
- * 10002から取得したread relaysをsetDefaultRelaysで設定
- * rx-nostrのdefault relaysはリアクティブに動作し、
- * 設定変更時に既存のREQサブスクリプションが自動的に更新される
- */
-function setReadRelays(relays: string[]): void {
-	const configs = relays.map((url) => ({
-		url,
-		read: true,
-		write: false,
-	}));
-	rx.setDefaultRelays(configs);
-}
+
 
 /**
  * 現在のread-onlyリレーリストを取得
@@ -40,6 +69,10 @@ function setReadRelays(relays: string[]): void {
 function getReadRelays(): string[] {
 	const configs = rx.getDefaultRelays({ filter: "read-only" });
 	return Object.values(configs).map((c) => c.url);
+}
+
+export function getDefaultRelays(): string[] {
+	return rx.getDefaultRelays();
 }
 
 /**
@@ -166,10 +199,10 @@ async function fetchEvents(
 }
 
 /**
- * ステップ1: kind 10002 から readRelays を収集する
- * bootstrap relaysを使って10002イベントを取得し、rタグからリレーURLを抽出
+ * ステップ1: kind 10002 から Relays を収集する
+ * bootstrap relaysを使って10002イベントを取得
  */
-async function collectReadRelays(pubkey: string): Promise<string[]> {
+async function collectRelays(pubkey: string): Promise<void> {
 	const relays: string[] = [];
 
 	// bootstrap relays（一時リレー）を使って10002イベントを取得
@@ -179,30 +212,15 @@ async function collectReadRelays(pubkey: string): Promise<string[]> {
 	);
 
 	if (!event) {
-		console.log("collectReadRelays: no 10002 event found");
+		console.log("collectRelays: no 10002 event found");
 		return relays;
 	}
-	console.log("collectReadRelays: found 10002 event, pubkey:", event.pubkey);
+	console.log("collectRelays: found 10002 event, pubkey:", event.pubkey);
 
-	// 'r' タグからリレーURLを収集する
-	for (const tag of event.tags) {
-		if (
-			Array.isArray(tag) &&
-			tag.length >= 2 &&
-			tag[0] === "r" &&
-			typeof tag[1] === "string"
-		) {
-			relays.push(tag[1]);
-		}
-	}
 
-	console.log("collectReadRelays: found relays:", relays);
-	const uniqueRelays = [...new Set(relays)];
+	rx.setDefaultRelays(event.tags)
 
-	// 読用リレーをrx-nostrに設定（リアクティブに動作）
-	setReadRelays(uniqueRelays);
-
-	return uniqueRelays;
+	return ;
 }
 
 /**
@@ -546,8 +564,8 @@ export async function fetchPaletteEmojis(pubkey: string): Promise<PaletteEmoji[]
 	console.log("fetchPaletteEmojis: START pubkey:", pubkey);
 	try {
 		// ステップ1: readRelaysを収集（内部でsetDefaultRelaysに設定）
-		const readRelays = await collectReadRelays(pubkey);
-		if (readRelays.length === 0) {
+		
+		if (rx.getDefaultRelays({filter:"read-all"}).length === 0) {
 			throw new Error("10002 not found in bootstrap relays");
 		}
 
@@ -577,8 +595,8 @@ export async function fetchPaletteSections(pubkey: string): Promise<PaletteSecti
 	console.log("fetchPaletteSections: START pubkey:", pubkey);
 	try {
 		// ステップ1: readRelaysを収集（内部でsetDefaultRelaysに設定）
-		const readRelays = await collectReadRelays(pubkey);
-		if (readRelays.length === 0) {
+		await collectRelays(pubkey);
+		if (rx.getDefaultRelays({filter:"read-all"}).length === 0) {
 			throw new Error("10002 not found in bootstrap relays");
 		}
 

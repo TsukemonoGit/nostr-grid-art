@@ -189,19 +189,21 @@ export function generateTags(
 		}
 	}
 
-	// null絵文字を追加
+	// null絵文字を追加（トリム後グリッドにnullセルが存在する場合のみ）
 	if (nullConfig.type === "custom" && nullConfig.emoji) {
-		const emoji = nullConfig.emoji;
-		const key = `${emoji.shortcode}:${emoji.url}`;
-		if (!tagSet.has(key)) {
-			const tag: string[] = ["emoji", emoji.shortcode, emoji.url];
-			if (emoji.ref) {
-				tag.push(emoji.ref);
+		const hasNullCell = trimmed.some((row) => row.some((cell) => !cell));
+		if (hasNullCell) {
+			const emoji = nullConfig.emoji;
+			const key = `${emoji.shortcode}:${emoji.url}`;
+			if (!tagSet.has(key)) {
+				const tag: string[] = ["emoji", emoji.shortcode, emoji.url];
+				if (emoji.ref) {
+					tag.push(emoji.ref);
+				}
+				tagSet.set(key, tag);
 			}
-			tagSet.set(key, tag);
 		}
 	}
-
 	return Array.from(tagSet.values());
 }
 
