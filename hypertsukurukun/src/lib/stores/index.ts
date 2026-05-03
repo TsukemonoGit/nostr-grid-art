@@ -2,3 +2,4 @@ export { gridStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, r
 export { paletteStore, paletteSectionsStore, selectedEmojiStore, selectEmoji, deselectEmoji, loadPalette, loadPaletteSections, buildSectionsFromFlat } from "./palette";
 export { nullEmojiStore } from "./nullEmoji";
 export { pubkeyStore, isLoggedInStore } from "./auth";
+export {isMobile} from "./isMobile";

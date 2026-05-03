@@ -8,6 +8,7 @@
 	import "$lib/stores/persistence";
 	import { fetchPaletteSections } from "$lib/nostr/fetchPalette";
 	import { loadPaletteSections } from "$lib/stores/palette";
+	import {isMobile} from "$lib/stores/isMobile";
 
 	let { children } = $props();
 
@@ -81,6 +82,15 @@
 		return () => {
 			document.removeEventListener("nlAuth", handleAuthEvent);
 		};
+	});
+
+
+	$effect(() => {
+		const mql = window.matchMedia('(max-width: 768px)');
+		isMobile.set(mql.matches);
+		const handler = (e: MediaQueryListEvent) => { isMobile.set(e.matches); };
+		mql.addEventListener('change', handler);
+		return () => mql.removeEventListener('change', handler);
 	});
 </script>
 

@@ -5,7 +5,9 @@ export const NULL_EMOJI_URL = "https://github.com/uchijo/my-emoji/blob/main/gene
 
 // アプリ用 kind 30030 をホストするpubkeyとリレー。確定したら差し替える
 export const APP_30030_PUBKEY = "e62f27d2814a25171c466d2d7612ad1a066db1362b4e259db5c076f9e6b21cb7";
+export const APP_30030_DTAG="emoji-edit-empty-only";
 export const APP_30030_RELAY = "wss://nos.lol";
+
 
 // 初回ログイン時に kind 10002 を探しに行く既知リレー。運用に合わせて書き換える
 export const BOOTSTRAP_RELAYS = [

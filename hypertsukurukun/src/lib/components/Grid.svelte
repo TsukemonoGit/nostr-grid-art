@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { gridStore, selectedEmojiStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, removeRow, removeCol, rowHasEmoji, colHasEmoji, loadGrid } from "$lib/stores";
+	import { gridStore, selectedEmojiStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, removeRow, removeCol, rowHasEmoji, colHasEmoji, loadGrid ,isMobile} from "$lib/stores";
 	import { selectEmoji } from "$lib/stores/palette";
 	import type { EmojiTag, PaletteEmoji, Grid } from "$lib/types";
 	import { GRID_MAX_ROWS, GRID_MAX_COLS } from "$lib/constants";
@@ -26,14 +26,10 @@
 	function handleCellClick(row: number, col: number, e: MouseEvent): void {
 		const cell = grid[row]?.[col] ?? null;
 
-		console.log('[Grid] handleCellClick:', { row, col, cell, selectedEmoji });
-
 		// 絵文字選択中の場合
 		if (selectedEmoji) {
-			console.log('[Grid] 絵文字選択中');
 			// 絵文字選択中: 空セル → 配置
 			if (!cell) {
-				console.log('[Grid] 空セル → 配置');
 				const tag: EmojiTag = [
 					"emoji",
 					selectedEmoji.shortcode,
@@ -44,13 +40,10 @@
 			}
 			// 絵文字選択中: 同じ絵文字 → コンテキストメニュー表示
 			else if (cell[1] === selectedEmoji.shortcode) {
-				console.log('[Grid] 同じ絵文字 → コンテキストメニュー表示');
 				contextMenu = { row, col, x: e.clientX, y: e.clientY };
-				console.log('[Grid] contextMenu 設定:', contextMenu);
 			}
 			// 絵文字選択中: 別の絵文字 → 上書き
 			else {
-				console.log('[Grid] 別の絵文字 → 上書き');
 				const tag: EmojiTag = [
 					"emoji",
 					selectedEmoji.shortcode,
@@ -60,17 +53,11 @@
 				setCell(row, col, tag);
 			}
 		} else {
-			console.log('[Grid] 選択解除中');
 			// 選択解除中: 配置済みセル → コンテキストメニュー表示
 			if (cell) {
-				console.log('[Grid] 配置済みセル → コンテキストメニュー表示');
 				contextMenu = { row, col, x: e.clientX, y: e.clientY };
-				console.log('[Grid] contextMenu 設定:', contextMenu);
 			}
 			// 選択解除中: 空セル → 何もしない
-			else {
-				console.log('[Grid] 空セル → 何もしない');
-			}
 		}
 	}
 
@@ -326,9 +313,10 @@
 	aria-hidden="true"
 />
 
+{#if $isMobile}
 <button class="keyboard-btn" onclick={focusKeyboardInput} aria-label="キーボードモード">
 	⌨
-</button>
+</button>{/if}
 <style>
 	.grid-wrapper {
 		position: relative;
