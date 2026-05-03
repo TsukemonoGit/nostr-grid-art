@@ -146,10 +146,12 @@
 	/* タブナビゲーション */
 	.tab-nav {
 		gap: 4px;
+		display:flex;
+		flex-wrap:wrap;
 		overflow-x: auto;
 		padding: 4px 0;
 		border-bottom: 1px solid #e0e0e0;
-		max-height:4em;
+		max-height:6em;
 	}
 
 	.tab-btn {

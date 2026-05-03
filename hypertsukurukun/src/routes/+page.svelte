@@ -1,3 +1,4 @@
+
 <script lang="ts">
 	import LoginButton from "$lib/components/LoginButton.svelte";
 	import Palette from "$lib/components/Palette.svelte";
@@ -7,24 +8,38 @@
 	import { selectedEmojiStore, deselectEmoji } from "$lib/stores";
 
 	let isMobile = $state(false);
+	let paletteOpen = $state(false);
+
+	$effect(() => {
+		const mql = window.matchMedia('(max-width: 768px)');
+		isMobile = mql.matches;
+		const handler = (e: MediaQueryListEvent) => { isMobile = e.matches; };
+		mql.addEventListener('change', handler);
+		return () => mql.removeEventListener('change', handler);
+	});
 </script>
 
 {#if isMobile}
-	<!-- スマホレイアウト（縦積み） -->
 	<div class="mobile-layout">
-		<LoginButton />
-		<Grid />
-		<Palette />
-		<!-- 選択中絵文字プレビュー -->
-		{#if $selectedEmojiStore}
-			<div class="selected-preview">
-				<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />
-				<span class="preview-shortcode">:{ $selectedEmojiStore.shortcode }:</span>
-				<button class="preview-deselect" onclick={deselectEmoji}>選択解除</button>
+		<div class="mobile-header">
+			<LoginButton />
+		</div>
+
+		<div class="mobile-main">
+			<Grid />
+			<OutputPanel />
+			<NullEmojiSetting />
+		</div>
+
+		<!-- ボトムシート -->
+		<div class="bottom-sheet" class:open={paletteOpen}>
+			<button class="sheet-toggle" onclick={() => paletteOpen = !paletteOpen}>
+				{paletteOpen ? '▽' : '△'}
+			</button>
+			<div class="sheet-content">
+				<Palette />
 			</div>
-		{/if}
-		<OutputPanel />
-		<NullEmojiSetting />
+		</div>
 	</div>
 {:else}
 	<!-- PCレイアウト（横並び） -->
@@ -37,21 +52,21 @@
 		<div class="main-content">
 			<div class="palette-column">
 				<Palette />
-				<!-- 選択中絵文字プレビュー -->
-				{#if $selectedEmojiStore}
-					<div class="selected-preview">
-						<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />
-						<span class="preview-shortcode">:{ $selectedEmojiStore.shortcode }:</span>
-						<button class="preview-deselect" onclick={deselectEmoji}>選択解除</button>
-					</div>
-				{/if}
-				<NullEmojiSetting />
 			</div>
+			
 			<div class="grid-column">
 				<Grid />
 				<OutputPanel />
 			</div>
 		</div>
+	</div>
+{/if}
+
+<!-- 選択中絵文字プレビュー -->
+{#if $selectedEmojiStore}
+	<div class="selected-preview">
+		<img src={$selectedEmojiStore.url} alt={$selectedEmojiStore.shortcode} />
+		<button class="preview-deselect" onclick={deselectEmoji}>選択解除</button>
 	</div>
 {/if}
 
@@ -61,12 +76,70 @@
 		box-sizing: border-box;
 	}
 
+	/* モバイルレイアウト */
 	.mobile-layout {
 		display: flex;
 		flex-direction: column;
+		height: 100vh;
+		overflow: hidden;
+	}
+
+	.mobile-header {
+		display: flex;
+		align-items: center;
 		gap: 8px;
 		padding: 8px;
-		max-width: 100%;
+		flex-shrink: 0;
+	}
+
+	.mobile-main {
+		flex: 1;
+		overflow-y: auto;
+		padding: 8px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	/* ボトムシート */
+	.bottom-sheet {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		background: white;
+		border-top: 1px solid #ccc;
+		border-radius: 12px 12px 0 0;
+		box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.15);
+		z-index: 100;
+		transition: height 0.3s ease;
+		height: 48px;
+		overflow: hidden;
+	}
+
+	.bottom-sheet.open {
+		height: 60vh;
+	}
+
+	.sheet-toggle {
+		display: block;
+		width: 100%;
+		height: 48px;
+		border: none;
+		background: none;
+		font-size: 18px;
+		cursor: pointer;
+		color: #555;
+	}
+
+	.sheet-toggle:hover {
+		background: #f5f5f5;
+	}
+
+	.sheet-content {
+		height: calc(100% - 48px);
+		overflow-y: auto;
+		padding: 0 8px 8px;
 	}
 
 	/* PCレイアウト */
@@ -116,21 +189,20 @@
 		overflow: hidden;
 	}
 
-	/* スマホ向けパレットカラムを狭く */
-	@media (max-width: 768px) {
-		.palette-column {
-			flex: none;
-		}
-	}
-
 	/* 選択中絵文字プレビュー */
 	.selected-preview {
+		position: fixed;
 		display: flex;
+		flex-direction: column;
+		top: 1em;
+		right: 1em;
 		align-items: center;
 		gap: 8px;
 		padding: 10px 12px;
 		background: #f5f5f5;
 		border-radius: 4px;
+		border-width: thin;
+		z-index: 200;
 	}
 
 	.selected-preview img {
