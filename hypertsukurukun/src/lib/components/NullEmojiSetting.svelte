@@ -95,7 +95,7 @@ function resetToDefault(): void {
 		<div class="selection-preview">
 			<p class="selection-hint">パレットから絵文字を選択してください</p>
 			{#if currentSelected}
-				<div class="selected-emoji" onclick={() => handlePaletteSelect(currentSelected)} role="button" tabindex="0">
+				<div class="selected-emoji" onclick={() => handlePaletteSelect(currentSelected!)} role="button" tabindex="0" onkeydown={(e) => e.key === "Enter" && handlePaletteSelect(currentSelected!)}>
 					<img src={currentSelected.url} alt={currentSelected.shortcode} />
 					<span>クリックしてnull絵文字に設定</span>
 				</div>

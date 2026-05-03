@@ -59,3 +59,7 @@ export function buildSectionsFromFlat(
 		emojis,
 	}));
 }
+
+
+paletteStore.subscribe(v => console.log("paletteStore:", v.length, "items"))(console)
+paletteSectionsStore.subscribe(v => console.log("paletteSectionsStore:", v.length, "sections"))(console)

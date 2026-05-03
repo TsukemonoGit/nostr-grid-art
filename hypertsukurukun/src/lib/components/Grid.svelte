@@ -167,7 +167,7 @@
 	}
 </script>
 
-<div class="grid-wrapper" onclick={handleBackgroundClick} tabindex="0" onkeydown={handleKeydown} aria-label="絵文字グリッド">
+<div class="grid-wrapper" role="grid" onclick={handleBackgroundClick} tabindex="0" onkeydown={handleKeydown} aria-label="絵文字グリッド">
 	<!-- グリッドエリア（上下左右に＋/−ボタン付き） -->
 	<div class="grid-outer">
 		<!-- 上端：行追加/削除ボタン -->

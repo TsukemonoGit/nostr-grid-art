@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { pubkeyStore, isLoggedInStore } from "$lib/stores";
 	import { fetchPaletteEmojis } from "$lib/nostr/fetchPalette";
-	import { loadPaletteSections, loadPalette } from "$lib/stores/palette";
+	import { loadPalette } from "$lib/stores/palette";
 
 	let pubkey = $state<string | null>(null);
 	let loginStatus = $state("");
@@ -16,40 +16,40 @@
 	$effect(() => {
 		isLoggedInStore.subscribe((v) => {
 			isLoading = false;
+			if (v && pubkey) {
+				loginStatus = "ログインしました";
+				setTimeout(() => {
+					loginStatus = "";
+				}, 2000);
+			}
 		});
 	});
 
 	/** ログインする */
 	async function handleLogin(): Promise<void> {
-		loginStatus = "ログイン中...";
 		isLoading = true;
+		loginStatus = "ログイン中...";
 
 		try {
-			// @konemono/nostr-login を使用してログイン
-			const { login } = await import("@konemono/nostr-login");
-			const result = await login();
-
-			if (result.pubkey) {
-				pubkeyStore.set(result.pubkey);
-				loginStatus = "ログインしました";
-
-				// パレット絵文字を取得
-				await fetchPaletteEmojis(result.pubkey);
-			} else {
-				loginStatus = "ログインに失敗しました";
-			}
+			// nostr-loginのlaunch関数で認証ダイアログを表示
+			const { launch } = await import("@konemono/nostr-login");
+			await launch("welcome");
 		} catch (e: any) {
-			loginStatus = `エラー: ${e?.message ?? "不明なエラー"}`;
-		} finally {
+			console.error("Login failed:", e);
+			loginStatus = "ログインに失敗しました";
 			isLoading = false;
-			setTimeout(() => {
-				loginStatus = "";
-			}, 3000);
 		}
 	}
 
 	/** ログアウトする */
-	function handleLogout(): void {
+	async function handleLogout(): Promise<void> {
+		try {
+			const { logout } = await import("@konemono/nostr-login");
+			await logout();
+		} catch (e) {
+			console.error("Logout failed:", e);
+		}
+
 		pubkeyStore.set(null);
 		loadPalette([]);
 		loginStatus = "ログアウトしました";
@@ -72,7 +72,7 @@
 	{/if}
 
 	{#if loginStatus}
-		<div class="status {loginStatus.includes("エラー") ? "error" : "success"}">{loginStatus}</div>
+		<div class="status {loginStatus.includes("エラー") || loginStatus.includes("失敗") ? "error" : "success"}">{loginStatus}</div>
 	{/if}
 </div>
 

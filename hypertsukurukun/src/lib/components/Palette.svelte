@@ -5,26 +5,18 @@
 	let sections = $state<PaletteSection[]>([]);
 	let flatList = $state<PaletteEmoji[]>([]);
 	let selected = $state<PaletteEmoji | null>(null);
-	let tabContainer: HTMLDivElement | null = null;
-	let sectionRefs = new Map<string, HTMLDivElement>();
+	let tabContainer = $state<HTMLDivElement | null>(null);
+	let activeSection = $state("");
 
-	$effect(() => {
-		paletteSectionsStore.subscribe((s) => {
-			sections = s;
-		});
-	});
+	/** セクションのDOM要素を取得 */
+	function getSectionElement(label: string): HTMLDivElement | null {
+		return tabContainer?.querySelector(`[data-section="${label}"]`) ?? null;
+	}
 
-	$effect(() => {
-		paletteStore.subscribe((p) => {
-			flatList = p;
-		});
-	});
-
-	$effect(() => {
-		selectedEmojiStore.subscribe((s) => {
-			selected = s;
-		});
-	});
+	// ストアの購読
+	paletteSectionsStore.subscribe((s) => { sections = s; });
+	paletteStore.subscribe((p) => { flatList = p; });
+	selectedEmojiStore.subscribe((s) => { selected = s; });
 
 	/** 絵文字が存在するかチェック */
 	function hasEmojis(): boolean {
@@ -42,41 +34,13 @@
 
 	/** タブをクリックしたときに該当セクションにスクロール */
 	function scrollToSection(sectionId: string): void {
-		const el = sectionRefs.get(sectionId);
+		const el = getSectionElement(sectionId);
 		if (el) {
 			el.scrollIntoView({ behavior: "smooth", block: "start" });
 		}
 	}
 
 	/** スクロールスパイ：現在表示中のセクションを判定 */
-	function updateActiveSection(): void {
-		if (!tabContainer || sections.length === 0) return;
-
-		const containerRect = tabContainer.getBoundingClientRect();
-		const triggerPoint = containerRect.top + 80; // 上から80pxの位置
-
-		let activeId = "";
-		for (const section of sections) {
-			const el = sectionRefs.get(section.label);
-			if (!el) continue;
-
-			const rect = el.getBoundingClientRect();
-			if (rect.bottom > triggerPoint) {
-				activeId = section.label;
-				break;
-			}
-		}
-
-		// 最後のセクションまでスクロールした場合は最後のセクションをアクティブに
-		if (!activeId && sections.length > 0) {
-			activeId = sections[sections.length - 1].label;
-		}
-
-		activeSection = activeId;
-	}
-
-	let activeSection = $state("");
-
 	$effect(() => {
 		if (!tabContainer) return;
 
@@ -91,7 +55,8 @@
 			{ root: tabContainer, threshold: 0.3 },
 		);
 
-		for (const [, el] of sectionRefs) {
+		const elements = tabContainer.querySelectorAll(".section");
+		for (const el of elements) {
 			observer.observe(el);
 		}
 
@@ -103,18 +68,20 @@
 	{#if hasEmojis()}
 		<h3 class="palette-title">パレット</h3>
 
-		<!-- タブナビゲーション（スクロールスパイ） -->
-		<div class="tab-nav" bind:this={tabContainer}>
-			{#each sections as section}
-				<button
-					class={"tab-btn" + (activeSection === section.label ? " active" : "")}
-					onclick={() => scrollToSection(section.label)}
-					data-section={section.label}
-				>
-					{section.label}
-				</button>
-			{/each}
-		</div>
+		<!-- タブナビゲーション（セクションがある場合のみ表示） -->
+		{#if sections.length > 0}
+			<div class="tab-nav" bind:this={tabContainer}>
+				{#each sections as section}
+					<button
+						class={"tab-btn" + (activeSection === section.label ? " active" : "")}
+						onclick={() => scrollToSection(section.label)}
+						data-section={section.label}
+					>
+						{section.label}
+					</button>
+				{/each}
+			</div>
+		{/if}
 
 		<!-- 選択中絵文字プレビュー -->
 		{#if selected}
@@ -130,26 +97,43 @@
 		{/if}
 
 		<!-- セクション付き絵文字リスト -->
-		<div class="emoji-list">
-			{#each sections as section}
-				<div class="section" data-section={section.label} bind:this={el}>
-					{#if section.emojis.length > 0}
-						<h4 class="section-title">{section.label}</h4>
-						<div class="emoji-grid">
-							{#each section.emojis as emoji}
-								<button
-									class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
-									onclick={() => toggleEmoji(emoji)}
-									aria-label={`絵文字 ${emoji.shortcode} を選択`}
-								>
-									<img src={emoji.url} alt={emoji.shortcode} loading="lazy" />
-								</button>
-							{/each}
-						</div>
-					{/if}
+		{#if sections.length > 0}
+			<div class="emoji-list">
+				{#each sections as section}
+					<div class="section" data-section={section.label}>
+						{#if section.emojis.length > 0}
+							<h4 class="section-title">{section.label}</h4>
+							<div class="emoji-grid">
+								{#each section.emojis as emoji}
+									<button
+										class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
+										onclick={() => toggleEmoji(emoji)}
+										aria-label={`絵文字 ${emoji.shortcode} を選択`}
+									>
+										<img src={emoji.url} alt={emoji.shortcode} loading="lazy" />
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<!-- フラットリスト（セクションなしのフォールバック） -->
+			<div class="emoji-list">
+				<div class="emoji-grid">
+					{#each flatList as emoji}
+						<button
+							class={"emoji-item" + (isSelected(emoji) ? " selected" : "")}
+							onclick={() => toggleEmoji(emoji)}
+							aria-label={`絵文字 ${emoji.shortcode} を選択`}
+						>
+							<img src={emoji.url} alt={emoji.shortcode} loading="lazy" />
+						</button>
+					{/each}
 				</div>
-			{/each}
-		</div>
+			</div>
+		{/if}
 	{/if}
 </div>
 

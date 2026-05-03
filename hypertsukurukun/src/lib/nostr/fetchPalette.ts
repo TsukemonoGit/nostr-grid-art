@@ -1,13 +1,46 @@
-import { createRxNostr, createRxBackwardReq } from "rx-nostr";
+import { createRxNostr, createRxBackwardReq, latest, uniq } from "rx-nostr";
 import type { Event as NostrEvent, Filter } from "nostr-typedef";
+
 import type { PaletteEmoji, PaletteSection } from "$lib/types";
 import { BOOTSTRAP_RELAYS } from "$lib/constants";
+import { verifier } from "@rx-nostr/crypto";
+import { Subject } from "rxjs";
 
 /** rx-nostrのシングルトンインスタンス */
 const rx = createRxNostr({
 	connectionStrategy: "lazy-keep",
 	eoseTimeout: 10000,
+	verifier,
 });
+
+/** 初期化: bootstrapリレーをread-onlyで設定 */
+rx.setDefaultRelays(
+	BOOTSTRAP_RELAYS.map((url) => ({ url, read: true, write: false })),
+);
+
+/**
+ * read用リレーを設定
+ * 10002から取得したread relaysをsetDefaultRelaysで設定
+ * rx-nostrのdefault relaysはリアクティブに動作し、
+ * 設定変更時に既存のREQサブスクリプションが自動的に更新される
+ */
+function setReadRelays(relays: string[]): void {
+	const configs = relays.map((url) => ({
+		url,
+		read: true,
+		write: false,
+	}));
+	rx.setDefaultRelays(configs);
+}
+
+/**
+ * 現在のread-onlyリレーリストを取得
+ * getDefaultRelaysはRecord<string, DefaultRelayConfig>を返すのでObject.valuesで取得
+ */
+function getReadRelays(): string[] {
+	const configs = rx.getDefaultRelays({ filter: "read-only" });
+	return Object.values(configs).map((c) => c.url);
+}
 
 /**
  * 指定リレーに対してoneshot（backward）reqでイベントを取得する
@@ -15,21 +48,40 @@ const rx = createRxNostr({
  */
 async function fetchOneEvent(
 	filter: Filter,
-	relays: string[],
+	tempRelays?: string[],
 ): Promise<NostrEvent | null> {
-	if (relays.length === 0) return null;
-
 	return new Promise((resolve) => {
 		const req = createRxBackwardReq();
-		const sub = rx.use(req, { on: { relays } }).subscribe({
-			next: (packet) => {
-				sub.unsubscribe();
-				resolve(packet.event as unknown as NostrEvent);
-			},
-			error: () => {
-				resolve(null);
-			},
-		});
+		const flushes$ = new Subject<void>();
+
+		// 一時リレーを指定する場合: tempRelays、そうでない場合はdefault relaysを使用
+		const sub =
+			tempRelays && tempRelays.length > 0
+				? rx
+						.use(req, { on: { relays: tempRelays } })
+						.pipe(uniq(flushes$), latest())
+						.subscribe({
+							next: (packet) => {
+								sub.unsubscribe();
+								resolve(packet.event as unknown as NostrEvent);
+							},
+							error: () => {
+								resolve(null);
+							},
+						})
+				: rx
+						.use(req)
+						.pipe(uniq(flushes$), latest())
+						.subscribe({
+							next: (packet) => {
+								sub.unsubscribe();
+								resolve(packet.event as unknown as NostrEvent);
+							},
+							error: () => {
+								resolve(null);
+							},
+						});
+
 		req.emit(filter);
 		req.over();
 
@@ -43,35 +95,62 @@ async function fetchOneEvent(
 
 /**
  * 指定リレーに対してoneshot reqでイベントを複数取得する（EOSE待ち）
+ * tempRelaysを指定しない場合はdefault relaysを使用
  */
 async function fetchEvents(
 	filter: Filter,
-	relays: string[],
+	tempRelays?: string[],
 ): Promise<NostrEvent[]> {
-	if (relays.length === 0) return [];
-
 	return new Promise((resolve) => {
 		const req = createRxBackwardReq();
 		const events: NostrEvent[] = [];
 		let settled = false;
 
-		const sub = rx.use(req, { on: { relays } }).subscribe({
-			next: (packet) => {
-				events.push(packet.event as unknown as NostrEvent);
-			},
-			complete: () => {
-				if (!settled) {
-					settled = true;
-					resolve(events);
-				}
-			},
-			error: () => {
-				if (!settled) {
-					settled = true;
-					resolve(events);
-				}
-			},
-		});
+		const flushes$ = new Subject<void>();
+
+		const sub =
+			tempRelays && tempRelays.length > 0
+				? rx
+						.use(req, { on: { relays: tempRelays } })
+						.pipe(uniq(flushes$))
+						.subscribe({
+							next: (packet) => {
+								events.push(packet.event as unknown as NostrEvent);
+							},
+							complete: () => {
+								if (!settled) {
+									settled = true;
+									resolve(events);
+								}
+							},
+							error: () => {
+								if (!settled) {
+									settled = true;
+									resolve(events);
+								}
+							},
+						})
+				: rx
+						.use(req)
+						.pipe(uniq(flushes$))
+						.subscribe({
+							next: (packet) => {
+								events.push(packet.event as unknown as NostrEvent);
+							},
+							complete: () => {
+								if (!settled) {
+									settled = true;
+									resolve(events);
+								}
+							},
+							error: () => {
+								if (!settled) {
+									settled = true;
+									resolve(events);
+								}
+							},
+						});
+
 		req.emit(filter);
 		req.over();
 
@@ -87,26 +166,23 @@ async function fetchEvents(
 }
 
 /**
- * リストから重複を除去する
- */
-function uniq(arr: string[]): string[] {
-	return [...new Set(arr)];
-}
-
-/**
  * ステップ1: kind 10002 から readRelays を収集する
+ * bootstrap relaysを使って10002イベントを取得し、rタグからリレーURLを抽出
  */
 async function collectReadRelays(pubkey: string): Promise<string[]> {
 	const relays: string[] = [];
 
+	// bootstrap relays（一時リレー）を使って10002イベントを取得
 	const event = await fetchOneEvent(
 		{ kinds: [10002], authors: [pubkey] },
 		BOOTSTRAP_RELAYS,
 	);
 
 	if (!event) {
+		console.log("collectReadRelays: no 10002 event found");
 		return relays;
 	}
+	console.log("collectReadRelays: found 10002 event, pubkey:", event.pubkey);
 
 	// 'r' タグからリレーURLを収集する
 	for (const tag of event.tags) {
@@ -120,20 +196,24 @@ async function collectReadRelays(pubkey: string): Promise<string[]> {
 		}
 	}
 
-	return uniq(relays);
+	console.log("collectReadRelays: found relays:", relays);
+	const uniqueRelays = [...new Set(relays)];
+
+	// 読用リレーをrx-nostrに設定（リアクティブに動作）
+	setReadRelays(uniqueRelays);
+
+	return uniqueRelays;
 }
 
 /**
  * ステップ2: kind 10030 を取得する
+ * default relays（10002から設定したread relays）を使用
  */
-async function fetchKind10030(
-	readRelays: string[],
-	pubkey: string,
-): Promise<NostrEvent> {
-	const events = await fetchEvents(
-		{ kinds: [10030], authors: [pubkey] },
-		readRelays,
-	);
+async function fetchKind10030(pubkey: string): Promise<NostrEvent> {
+	console.log("fetchKind10030: fetching for pubkey:", pubkey);
+	console.log("fetchKind10030: current default relays:", getReadRelays());
+	const events = await fetchEvents({ kinds: [10030], authors: [pubkey] });
+	console.log("fetchKind10030: fetched", events.length, "events");
 
 	if (events.length === 0) {
 		throw new Error("10030 not found");
@@ -150,13 +230,14 @@ async function fetchKind10030(
 
 /**
  * ステップ3: kind 30030 を取得する
+ * 'a' タグのrelay hintsがあれば一時リレーとして使用
  */
 async function fetchKind30030(
 	kind10030Event: NostrEvent,
-	readRelays: string[],
 ): Promise<
 	Array<{ identifier: string; event: NostrEvent; relayHints: string[] }>
 > {
+	console.log("fetchKind30030: starting");
 	const results: Array<{
 		identifier: string;
 		event: NostrEvent;
@@ -174,7 +255,10 @@ async function fetchKind30030(
 			typeof tag[1] === "string",
 	) as [string, string, ...string[]][];
 
-	for (const aTag of aTags) {
+	console.log("fetchKind30030: found", aTags.length, "a-tags");
+
+	// 並列でフェッチしてパフォーマンスを向上
+	const fetchPromises = aTags.map(async (aTag) => {
 		const kindPubkeyIdentifier = aTag[1];
 		// identifier は 3番目の要素（kind:pubkey:identifier の identifier部分）
 		const parts = kindPubkeyIdentifier.split(":");
@@ -183,23 +267,30 @@ async function fetchKind30030(
 			(r): r is string => typeof r === "string" && r.startsWith("wss://"),
 		) as string[];
 
-		// メイン: readRelays + relay hints から取得
-		const targetRelays = uniq([...readRelays, ...relayHints]);
-
+		console.log(`fetchKind30030: fetching identifier="${identifier}", relayHints:`, relayHints);
+		// relay hintsがあれば一時リレーとして使用、なければdefault relaysを使用
 		const events = await fetchEvents(
 			{ kinds: [30030], "#d": [identifier] },
-			targetRelays,
+			relayHints.length > 0 ? relayHints : undefined,
 		);
+		console.log(`fetchKind30030: fetched ${events.length} events for identifier="${identifier}"`);
 
 		if (events.length > 0) {
-			results.push({
-				identifier,
-				event: events[0],
-				relayHints,
-			});
+			return { identifier, event: events[0], relayHints };
+		}
+		return null;
+	});
+
+	// 全Promiseを並列実行
+	const resolved = await Promise.all(fetchPromises);
+	// nullをフィルタリング
+	for (const item of resolved) {
+		if (item !== null) {
+			results.push(item);
 		}
 	}
 
+	console.log("fetchKind30030: returning", results.length, "results");
 	return results;
 }
 
@@ -286,13 +377,15 @@ function collectAndResolveAsSections(
 	}
 
 	// 各30030(identifier)ごとにセクションを作成
-	const sections: PaletteSection[] = kind30030Results.map(({ identifier, event }) => {
-		const emojis = resolveEmojisFromEvent(event, "30030:", event.pubkey);
-		return {
-			label: identifier ? `${identifier}の30030絵文字セット` : " unnamed の30030絵文字セット",
-			emojis,
-		};
-	});
+	const sections: PaletteSection[] = kind30030Results.map(
+		({ identifier, event }) => {
+			const emojis = resolveEmojisFromEvent(event, "30030:", event.pubkey);
+			return {
+				label: identifier ? `${identifier}の30030絵文字セット` : " unnamed の30030絵文字セット",
+				emojis,
+			};
+		},
+	);
 
 	// ノラ絵文字（10030に直接のemojiタグ）を収集
 	const norapaintEmojis: PaletteEmoji[] = [];
@@ -450,20 +543,28 @@ function collectAndResolve(
  * @returns PaletteEmoji[]
  */
 export async function fetchPaletteEmojis(pubkey: string): Promise<PaletteEmoji[]> {
-	// ステップ1: readRelaysを収集
-	const readRelays = await collectReadRelays(pubkey);
-	if (readRelays.length === 0) {
-		throw new Error("10002 not found in bootstrap relays");
+	console.log("fetchPaletteEmojis: START pubkey:", pubkey);
+	try {
+		// ステップ1: readRelaysを収集（内部でsetDefaultRelaysに設定）
+		const readRelays = await collectReadRelays(pubkey);
+		if (readRelays.length === 0) {
+			throw new Error("10002 not found in bootstrap relays");
+		}
+
+		// ステップ2: kind 10030 を取得（default relaysを使用）
+		const kind10030 = await fetchKind10030(pubkey);
+
+		// ステップ3: kind 30030 を取得（relay hintsがあれば一時リレーとして使用）
+		const kind30030Results = await fetchKind30030(kind10030);
+
+		// ステップ4: 絵文字を収集・衝突解消
+		const result = collectAndResolve(kind30030Results, kind10030);
+		console.log("fetchPaletteEmojis: SUCCESS,", result.length, "emojis");
+		return result;
+	} catch (err) {
+		console.error("fetchPaletteEmojis: ERROR", err);
+		throw err;
 	}
-
-	// ステップ2: kind 10030 を取得
-	const kind10030 = await fetchKind10030(readRelays, pubkey);
-
-	// ステップ3: kind 30030 を取得
-	const kind30030Results = await fetchKind30030(kind10030, readRelays);
-
-	// ステップ4: 絵文字を収集・衝突解消
-	return collectAndResolve(kind30030Results, kind10030);
 }
 
 /**
@@ -473,18 +574,26 @@ export async function fetchPaletteEmojis(pubkey: string): Promise<PaletteEmoji[]
  * @returns PaletteSection[]
  */
 export async function fetchPaletteSections(pubkey: string): Promise<PaletteSection[]> {
-	// ステップ1: readRelaysを収集
-	const readRelays = await collectReadRelays(pubkey);
-	if (readRelays.length === 0) {
-		throw new Error("10002 not found in bootstrap relays");
+	console.log("fetchPaletteSections: START pubkey:", pubkey);
+	try {
+		// ステップ1: readRelaysを収集（内部でsetDefaultRelaysに設定）
+		const readRelays = await collectReadRelays(pubkey);
+		if (readRelays.length === 0) {
+			throw new Error("10002 not found in bootstrap relays");
+		}
+
+		// ステップ2: kind 10030 を取得（default relaysを使用）
+		const kind10030 = await fetchKind10030(pubkey);
+
+		// ステップ3: kind 30030 を取得（relay hintsがあれば一時リレーとして使用）
+		const kind30030Results = await fetchKind30030(kind10030);
+
+		// ステップ4: セクション付きで絵文字を収集・衝突解消
+		const result = collectAndResolveAsSections(kind30030Results, kind10030);
+		console.log("fetchPaletteSections: SUCCESS,", result.length, "sections");
+		return result;
+	} catch (err) {
+		console.error("fetchPaletteSections: ERROR", err);
+		throw err;
 	}
-
-	// ステップ2: kind 10030 を取得
-	const kind10030 = await fetchKind10030(readRelays, pubkey);
-
-	// ステップ3: kind 30030 を取得
-	const kind30030Results = await fetchKind30030(kind10030, readRelays);
-
-	// ステップ4: セクション付きで絵文字を収集・衝突解消
-	return collectAndResolveAsSections(kind30030Results, kind10030);
 }
