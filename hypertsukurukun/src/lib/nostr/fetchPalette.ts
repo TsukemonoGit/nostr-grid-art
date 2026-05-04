@@ -576,6 +576,61 @@ export async function fetchPaletteEmojis(
 }
 
 /**
+ * 自分のkind 10030にデフォルト絵文字セットの'a'タグを追加してpublishする
+ * @param pubkey ユーザーの公開鍵
+ */
+export async function addDefaultEmojiToMyKind10030(pubkey: string): Promise<boolean> {
+  console.log("addDefaultEmojiToMyKind10030: START pubkey:", pubkey);
+  try {
+    // kind 10030 を取得
+    const kind10030 = await fetchKind10030(pubkey);
+
+    // 既存の'a'タグを確認（重複防止）
+    const existingAValues = new Set<string>();
+    for (const tag of kind10030.tags) {
+      if (
+        Array.isArray(tag) &&
+        tag.length >= 2 &&
+        tag[0] === "a" &&
+        typeof tag[1] === "string"
+      ) {
+        existingAValues.add(tag[1]);
+      }
+    }
+
+    const newAValue = `30030:${APP_30030_PUBKEY}:${APP_30030_DTAG}`;
+
+    // 既に登録済みかチェック
+    if (existingAValues.has(newAValue)) {
+      console.log("addDefaultEmojiToMyKind10030: already registered");
+      return true;
+    }
+
+    // 新しい'a'タグを追加（relay hint付き）
+    const newTag: [string, string, string] = ["a", newAValue, APP_30030_RELAY];
+    const updatedTags = [...kind10030.tags, newTag];
+
+    // 新しいイベントを作成してsign・publish
+    const { hexlify, finalizeEvent } = await import("nostr-typedef");
+    const newEvent = await finalizeEvent(
+      {
+        kind: 10030,
+        tags: updatedTags,
+        content: kind10030.content,
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      globalThis as unknown as string,
+    );
+
+    console.log("addDefaultEmojiToMyKind10030: publishing updated event");
+    return await publishEvent(newEvent as EventParameters);
+  } catch (err) {
+    console.error("addDefaultEmojiToMyKind10030: ERROR", err);
+    throw err;
+  }
+}
+
+/**
  * pubkeyを使ってセクション付きパレット絵文字を取得する
  * セクション: 各30030(identifier)ごと + ノラ絵文字まとめ
  * @param pubkey ユーザーの公開鍵
