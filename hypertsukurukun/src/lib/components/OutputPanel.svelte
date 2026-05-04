@@ -61,7 +61,7 @@
     postStatus = "投稿中...";
 
     try {
-      if (typeof window === "undefined" || !(window as any).nostr) {
+      if (typeof window === "undefined" || !(window as { nostr?: unknown }).nostr) {
         postStatus = "エラー: nostr拡張がインストールされていません";
         setTimeout(() => {
           postStatus = "";
