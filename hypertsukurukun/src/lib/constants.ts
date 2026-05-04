@@ -39,5 +39,6 @@ export const GRID_MAX_COLS = 64;
 export const STORAGE_KEYS = {
 	GRID: "hyptsukuru_grid",
 	PALETTE: "hyptsukuru_palette",
+	PALETTE_SECTIONS: "hyptsukuru_palette_sections",
 	NULL_EMOJI: "hyptsukuru_null_emoji",
 } as const;

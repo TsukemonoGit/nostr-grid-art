@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 import type { PaletteEmoji, PaletteSection } from "$lib/types";
-import { savePalette } from "$lib/storage";
+import { savePalette, savePaletteSections } from "$lib/storage";
 
 /** パレット絵文字リスト */
 export const paletteStore = writable<PaletteEmoji[]>([]);
@@ -38,6 +38,7 @@ export function loadPaletteSections(sections: PaletteSection[]): void {
 	const all = sections.flatMap((s) => s.emojis);
 	paletteStore.set(all);
 	savePalette(all);
+	savePaletteSections(sections);
 }
 
 /** フラットなパレットリストからセクションを生成する */
@@ -62,6 +63,19 @@ export function buildSectionsFromFlat(
 	}));
 }
 
+/** フラットリストからrefベースでセクションを自動生成する */
+export function sectionsFromFlatList(emojis: PaletteEmoji[]): PaletteSection[] {
+	return buildSectionsFromFlat(
+		emojis,
+		(e) => e.ref || "__nostr__",
+		(_key) => "Nostr絵文字",
+	);
+}
 
-paletteStore.subscribe(v => console.log("paletteStore:", v.length, "items"))(console)
-paletteSectionsStore.subscribe(v => console.log("paletteSectionsStore:", v.length, "sections"))(console)
+
+paletteStore.subscribe(v => {
+	console.log("paletteStore:", v.length, "items");
+});
+paletteSectionsStore.subscribe(v => {
+	console.log("paletteSectionsStore:", v.length, "sections");
+});
