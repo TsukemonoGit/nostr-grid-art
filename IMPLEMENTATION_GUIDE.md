@@ -248,14 +248,13 @@ rx-nostr を使用して以下のフローを実装する。
 
 ```typescript
 // constants.ts の BOOTSTRAP_RELAYS から pubkey の kind 10002 を取得する
-// 10002 の 'r' タグ（readマーカー or マーカーなし）からリレーURLを収集する
-// → readRelays: string[]
+// rxNostrのdefaultRelaysにtagsをセットする
 ```
 
 #### ステップ2：kind 10030 の取得
 
 ```typescript
-// readRelays から pubkey の kind 10030 を取得する
+//  pubkey の kind 10030 を取得する
 // 見つからない場合は Error("10030 not found") をスローする
 ```
 
@@ -264,7 +263,7 @@ rx-nostr を使用して以下のフローを実装する。
 ```typescript
 // 10030 の 'a' タグを列挙する
 // 各 'a' タグについて：
-//   メイン：readRelays から kind 30030 を取得する
+//   メイン：10002リレーから kind 30030 を取得する
 //   フォールバック：'a' タグのリレーヒントから取得する
 ```
 

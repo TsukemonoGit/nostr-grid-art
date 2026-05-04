@@ -1,4 +1,4 @@
-import { createRxNostr, createRxBackwardReq, latest, uniq } from "rx-nostr";
+import { createRxNostr, createRxBackwardReq, latest, uniq, completeOnTimeout } from "rx-nostr";
 import type { Event as NostrEvent, Filter } from "nostr-typedef";
 
 import type { PaletteEmoji, PaletteSection } from "$lib/types";
@@ -10,7 +10,6 @@ import {type EventParameter} from "rx-nostr"
 /** rx-nostrのシングルトンインスタンス */
 const rx = createRxNostr({
 	connectionStrategy: "lazy-keep",
-	eoseTimeout: 10000,
 	verifier,
 });
 
@@ -62,14 +61,6 @@ rx.setDefaultRelays(
 
 
 
-/**
- * 現在のread-onlyリレーリストを取得
- * getDefaultRelaysはRecord<string, DefaultRelayConfig>を返すのでObject.valuesで取得
- */
-function getReadRelays(): string[] {
-	const configs = rx.getDefaultRelays({ filter: "read-only" });
-	return Object.values(configs).map((c) => c.url);
-}
 
 export function getDefaultRelays(): string[] {
 	return rx.getDefaultRelays();
@@ -92,11 +83,14 @@ async function fetchOneEvent(
 			tempRelays && tempRelays.length > 0
 				? rx
 						.use(req, { on: { relays: tempRelays } })
-						.pipe(uniq(flushes$), latest())
+						.pipe(uniq(flushes$), latest(), completeOnTimeout(15000))
 						.subscribe({
 							next: (packet) => {
 								sub.unsubscribe();
 								resolve(packet.event as unknown as NostrEvent);
+							},
+							complete: () => {
+								resolve(null);
 							},
 							error: () => {
 								resolve(null);
@@ -104,11 +98,14 @@ async function fetchOneEvent(
 						})
 				: rx
 						.use(req)
-						.pipe(uniq(flushes$), latest())
+						.pipe(uniq(flushes$), latest(), completeOnTimeout(15000))
 						.subscribe({
 							next: (packet) => {
 								sub.unsubscribe();
 								resolve(packet.event as unknown as NostrEvent);
+							},
+							complete: () => {
+								resolve(null);
 							},
 							error: () => {
 								resolve(null);
@@ -117,12 +114,6 @@ async function fetchOneEvent(
 
 		req.emit(filter);
 		req.over();
-
-		// タイムアウト
-		setTimeout(() => {
-			sub.unsubscribe();
-			resolve(null);
-		}, 15000);
 	});
 }
 
@@ -145,7 +136,7 @@ async function fetchEvents(
 			tempRelays && tempRelays.length > 0
 				? rx
 						.use(req, { on: { relays: tempRelays } })
-						.pipe(uniq(flushes$))
+						.pipe(uniq(flushes$), completeOnTimeout(15000))
 						.subscribe({
 							next: (packet) => {
 								events.push(packet.event as unknown as NostrEvent);
@@ -165,7 +156,7 @@ async function fetchEvents(
 						})
 				: rx
 						.use(req)
-						.pipe(uniq(flushes$))
+						.pipe(uniq(flushes$), completeOnTimeout(15000))
 						.subscribe({
 							next: (packet) => {
 								events.push(packet.event as unknown as NostrEvent);
@@ -186,15 +177,6 @@ async function fetchEvents(
 
 		req.emit(filter);
 		req.over();
-
-		// タイムアウト
-		setTimeout(() => {
-			if (!settled) {
-				settled = true;
-				sub.unsubscribe();
-				resolve(events);
-			}
-		}, 15000);
 	});
 }
 
@@ -203,8 +185,6 @@ async function fetchEvents(
  * bootstrap relaysを使って10002イベントを取得
  */
 async function collectRelays(pubkey: string): Promise<void> {
-	const relays: string[] = [];
-
 	// bootstrap relays（一時リレー）を使って10002イベントを取得
 	const event = await fetchOneEvent(
 		{ kinds: [10002], authors: [pubkey] },
@@ -213,23 +193,21 @@ async function collectRelays(pubkey: string): Promise<void> {
 
 	if (!event) {
 		console.log("collectRelays: no 10002 event found");
-		return relays;
+		return;
 	}
 	console.log("collectRelays: found 10002 event, pubkey:", event.pubkey);
 
-
-	rx.setDefaultRelays(event.tags)
-
-	return ;
+	
+	rx.setDefaultRelays(event.tags);
 }
 
 /**
  * ステップ2: kind 10030 を取得する
- * default relays（10002から設定したread relays）を使用
+ * default relays（10002）を使用
  */
 async function fetchKind10030(pubkey: string): Promise<NostrEvent> {
 	console.log("fetchKind10030: fetching for pubkey:", pubkey);
-	console.log("fetchKind10030: current default relays:", getReadRelays());
+	console.log("fetchKind10030: current default relays:", getDefaultRelays());
 	const events = await fetchEvents({ kinds: [10030], authors: [pubkey] });
 	console.log("fetchKind10030: fetched", events.length, "events");
 
@@ -239,10 +217,7 @@ async function fetchKind10030(pubkey: string): Promise<NostrEvent> {
 
 	// 最新のものを使う（created_atが大きい方）
 	return events.reduce((a, b) =>
-		(b as unknown as { created_at: string | number }).created_at >
-		(a as unknown as { created_at: string | number }).created_at
-			? b
-			: a,
+		(b.created_at > a.created_at ? b : a),
 	);
 }
 
@@ -564,7 +539,7 @@ export async function fetchPaletteEmojis(pubkey: string): Promise<PaletteEmoji[]
 	console.log("fetchPaletteEmojis: START pubkey:", pubkey);
 	try {
 		// ステップ1: readRelaysを収集（内部でsetDefaultRelaysに設定）
-		
+		await collectRelays(pubkey);
 		if (rx.getDefaultRelays({filter:"read-all"}).length === 0) {
 			throw new Error("10002 not found in bootstrap relays");
 		}
