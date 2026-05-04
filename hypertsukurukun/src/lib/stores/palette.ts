@@ -68,12 +68,7 @@ export function sectionsFromFlatList(emojis: PaletteEmoji[]): PaletteSection[] {
 	return buildSectionsFromFlat(
 		emojis,
 		(e) => e.ref || "__nostr__",
-		(key) => {
-			if (key.startsWith("30030:")) {
-				return "Nostr絵文字";
-			}
-			return "Nostr絵文字";
-		},
+		(_key) => "Nostr絵文字",
 	);
 }
 
