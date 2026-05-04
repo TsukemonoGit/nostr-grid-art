@@ -86,8 +86,8 @@
       } else {
         postStatus = "投稿失敗";
       }
-    } catch (e: any) {
-      postStatus = `エラー: ${e?.message ?? "不明なエラー"}`;
+    } catch (e: unknown) {
+      postStatus = `エラー: ${e instanceof Error ? e.message : "不明なエラー"}`;
     } finally {
       setTimeout(() => {
         postStatus = "";
