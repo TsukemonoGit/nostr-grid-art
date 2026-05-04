@@ -83,30 +83,22 @@
     <span class="null-label">:{getNullEmojiLabel()}:（null絵文字）</span>
   </div>
 
-  <!-- パレットから選択ボタン -->
-  <button class="select-btn" onclick={startPaletteSelection}
-    >パレットから選択</button
-  >
-
-  <!-- パレット選択中のプレビュー -->
-  {#if paletteEmojiMode}
-    <div class="selection-preview">
-      <p class="selection-hint">パレットから絵文字を選択してください</p>
-      {#if currentSelected}
-        <div
-          class="selected-emoji"
-          onclick={() => handlePaletteSelect(currentSelected!)}
-          role="button"
-          tabindex="0"
-          onkeydown={(e) =>
-            e.key === "Enter" && handlePaletteSelect(currentSelected!)}
-        >
-          <img src={currentSelected.url} alt={currentSelected.shortcode} />
-          <span>クリックしてnull絵文字に設定</span>
-        </div>
-      {/if}
-    </div>
-  {/if}
+  <div class="selection-preview">
+    <p class="selection-hint">選択中の絵文字をnull絵文字に設定</p>
+    {#if currentSelected}
+      <div
+        class="selected-emoji"
+        onclick={() => handlePaletteSelect(currentSelected!)}
+        role="button"
+        tabindex="0"
+        onkeydown={(e) =>
+          e.key === "Enter" && handlePaletteSelect(currentSelected!)}
+      >
+        <img src={currentSelected.url} alt={currentSelected.shortcode} />
+        <span>クリックしてnull絵文字に設定</span>
+      </div>
+    {/if}
+  </div>
 
   <!-- 全角スペースオプション（NULL-04: 非推奨） -->
   <div class="fullwidth-option">
