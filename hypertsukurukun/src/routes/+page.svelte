@@ -5,7 +5,7 @@
   import OutputPanel from "$lib/components/OutputPanel.svelte";
   import NullEmojiSetting from "$lib/components/NullEmojiSetting.svelte";
   import { selectedEmojiStore, deselectEmoji, isMobile } from "$lib/stores";
-  import { ChevronDown, ChevronUp, Settings } from "@lucide/svelte";
+  import { ChevronDown, ChevronUp, Settings, X } from "@lucide/svelte";
 
   let paletteOpen = $state(false);
   let settingsOpen = $state(false);
@@ -13,26 +13,31 @@
 
 {#if $isMobile}
   <div class="mobile-layout">
-    <div class="mobile-header">
-      <LoginButton />
-      <div class="flex items-center gap-2">
-        {#if $selectedEmojiStore}
-          <button
-            class="mobile-preview"
-            onclick={deselectEmoji}
-            title="選択解除"
-          >
-            <img
-              src={$selectedEmojiStore.url}
-              alt={$selectedEmojiStore.shortcode}
-            />
-          </button>
-        {/if}
+    <div class="flex items-center flex-col justify-between p-2 shrink-0">
+      <div class="flex items-center justify-between shrink-0 w-full gap-2">
+        <LoginButton />
         <button
           class="icon-button"
           onclick={() => (settingsOpen = true)}
           title="設定"><Settings /></button
         >
+      </div>
+      <div class="h-6 max-h-6 w-full">
+        {#if $selectedEmojiStore}
+          <div class="flex items-center gap-2 w-full flex-row-reverse">
+            <button
+              class="mobile-preview"
+              onclick={deselectEmoji}
+              title="選択解除"
+            >
+              <img
+                src={$selectedEmojiStore.url}
+                alt={$selectedEmojiStore.shortcode}
+              />
+            </button>
+            <div class="text-xs">:{$selectedEmojiStore.shortcode}:</div>
+          </div>
+        {/if}
       </div>
     </div>
     <div class="mobile-main">
@@ -60,6 +65,8 @@
       <LoginButton />
       <h1 class="title">Nostr Grid Art</h1>
       {#if $selectedEmojiStore}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="pc-preview"
           onclick={deselectEmoji}
@@ -70,6 +77,9 @@
             alt={$selectedEmojiStore.shortcode}
           />
         </div>
+
+        <div>:{$selectedEmojiStore.shortcode}:</div>
+
         <button class="icon-button preview-deselect-btn" onclick={deselectEmoji}
           >選択解除</button
         >
@@ -96,12 +106,14 @@
 
 <!-- 設定モーダル -->
 {#if settingsOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-backdrop" onclick={() => (settingsOpen = false)}>
     <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-header">
         <h2 class="modal-title">設定</h2>
         <button class="modal-close" onclick={() => (settingsOpen = false)}
-          >✕</button
+          ><X /></button
         >
       </div>
       <div class="modal-body">
@@ -137,15 +149,6 @@
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-  }
-
-  .mobile-header {
-    justify-content: space-between;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 8px;
-    flex-shrink: 0;
   }
 
   .mobile-main {
