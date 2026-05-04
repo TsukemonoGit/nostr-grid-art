@@ -2,11 +2,11 @@
 	import "../app.css";
 	import { onMount } from "svelte";
 	import favicon from "$lib/assets/favicon.svg";
-	import { gridStore, paletteStore, nullEmojiStore } from "$lib/stores";
+	import { gridStore, paletteStore, nullEmojiStore, paletteSectionsStore } from "$lib/stores";
 	import { pubkeyStore, isLoggedInStore } from "$lib/stores";
-	import { loadGrid, loadPalette as loadPaletteStorage, loadNullEmoji } from "$lib/storage";
+	import { loadGrid, loadPalette as loadPaletteStorage, savePaletteSections, loadPaletteSectionsStorage, loadNullEmoji } from "$lib/storage";
 	import { fetchPaletteSections } from "$lib/nostr/fetchPalette";
-	import { loadPaletteSections } from "$lib/stores/palette";
+	import { loadPaletteSections, sectionsFromFlatList } from "$lib/stores/palette";
 	import {isMobile} from "$lib/stores/isMobile";
 
 	let { children } = $props();
@@ -33,8 +33,15 @@
 		}
 
 		const savedPalette = loadPaletteStorage();
-		if (savedPalette) {
+		const savedSections = loadPaletteSectionsStorage();
+		if (savedSections && savedSections.length > 0) {
+			loadPaletteSections(savedSections);
+		} else if (savedPalette) {
 			paletteStore.set(savedPalette);
+			const sections = sectionsFromFlatList(savedPalette);
+			if (sections.length > 0) {
+				paletteSectionsStore.set(sections);
+			}
 		}
 
 		const savedNullEmoji = loadNullEmoji();

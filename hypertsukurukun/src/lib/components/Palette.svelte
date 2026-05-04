@@ -7,15 +7,13 @@
 	let tabContainer = $state<HTMLDivElement | null>(null);
 	let activeSection = $state("");
 	let searchQuery = $state("");
-	let isLoading = $state(true);
+	
 
 	paletteSectionsStore.subscribe((s) => {
 		sections = s;
-		if (s.length > 0) isLoading = false;
 	});
 	paletteStore.subscribe((p) => {
 		flatList = p;
-		if (p.length > 0) isLoading = false;
 	});
 
 	let filteredSections = $derived(
@@ -90,7 +88,7 @@
 </script>
 
 <div class="palette-container" bind:this={tabContainer}>
-	{#if isLoading}
+	{#if !hasEmojis()}
 		<!-- スケルトンローディング -->
 		<div class="skeleton-title shimmer"></div>
 		<div class="skeleton-search shimmer"></div>
@@ -104,7 +102,7 @@
 				<div class="skeleton-emoji shimmer"></div>
 			{/each}
 		</div>
-	{:else if hasEmojis()}
+	{:else}
 		<h3 class="palette-title">パレット</h3>
 
 		<input

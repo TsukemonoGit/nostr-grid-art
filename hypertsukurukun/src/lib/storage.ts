@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "$lib/constants";
-import type { Grid, PaletteEmoji, NullEmojiConfig } from "$lib/types";
+import type { Grid, PaletteEmoji, PaletteSection, NullEmojiConfig } from "$lib/types";
 
 /** localStorageに安全にアクセスするヘルパー（ない場合はnullを返す） */
 function getLocalStorageItem(key: string): string | null {
@@ -53,6 +53,24 @@ export function loadPalette(): PaletteEmoji[] | null {
 		const parsed = JSON.parse(raw);
 		if (!Array.isArray(parsed)) return null;
 		return parsed as PaletteEmoji[];
+	} catch {
+		return null;
+	}
+}
+
+/** パレットセクションをlocalStorageに保存する */
+export function savePaletteSections(sections: PaletteSection[]): void {
+	setLocalStorageItem(STORAGE_KEYS.PALETTE_SECTIONS, JSON.stringify(sections));
+}
+
+/** localStorageからパレットセクションをロードする（ない場合はnull） */
+export function loadPaletteSectionsStorage(): PaletteSection[] | null {
+	const raw = getLocalStorageItem(STORAGE_KEYS.PALETTE_SECTIONS);
+	if (!raw) return null;
+	try {
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) return null;
+		return parsed as PaletteSection[];
 	} catch {
 		return null;
 	}
