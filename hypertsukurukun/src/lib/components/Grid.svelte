@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { gridStore, selectedEmojiStore, setCell, addRowBottom, addRowTop, addColRight, addColLeft, removeRow, removeCol, rowHasEmoji, colHasEmoji, loadGrid ,isMobile, clearAll, undo, redo, canUndo, canRedo, getShowClearConfirm, setShowClearConfirm} from "$lib/stores";
-	import { selectEmoji } from "$lib/stores/palette";
+	import { selectEmoji, deselectEmoji } from "$lib/stores/palette";
 	import type { EmojiTag, PaletteEmoji, Grid } from "$lib/types";
 	import { GRID_MAX_ROWS, GRID_MAX_COLS } from "$lib/constants";
 
 	// Svelte storesから値を購読
 	let grid = $state<Grid>([]);
 	let selectedEmoji = $state<PaletteEmoji | null>(null);
-	let contextMenu = $state<{ row: number; col: number; x: number; y: number } | null>(null);
+	let contextMenu = $state<{ row: number; col: number; x: number; y: number; shortcode: string | null } | null>(null);
 	let scrollContainer: HTMLDivElement | null = null;
 
 	$effect(() => {
@@ -40,7 +40,7 @@
 			}
 			// 絵文字選択中: 同じ絵文字 → コンテキストメニュー表示
 			else if (cell[1] === selectedEmoji.shortcode) {
-				contextMenu = { row, col, x: e.clientX, y: e.clientY };
+				contextMenu = { row, col, x: e.clientX, y: e.clientY, shortcode: cell[1] };
 			}
 			// 絵文字選択中: 別の絵文字 → 上書き
 			else {
@@ -55,7 +55,7 @@
 		} else {
 			// 選択解除中: 配置済みセル → コンテキストメニュー表示
 			if (cell) {
-				contextMenu = { row, col, x: e.clientX, y: e.clientY };
+				contextMenu = { row, col, x: e.clientX, y: e.clientY, shortcode: cell[1] };
 			}
 			// 選択解除中: 空セル → 何もしない
 		}
@@ -343,13 +343,26 @@
 			>
 				削除
 			</button>
-			<button
-				class="context-menu-item select"
-				role="menuitem"
-				onclick={() => useAsSelected(cm.row, cm.col)}
-			>
-				選択
-			</button>
+			{#if selectedEmoji && cm.shortcode === selectedEmoji.shortcode}
+				<button
+					class="context-menu-item deselect"
+					role="menuitem"
+					onclick={() => {
+						deselectEmoji();
+						closeContextMenu();
+					}}
+				>
+					選択解除
+				</button>
+			{:else}
+				<button
+					class="context-menu-item select"
+					role="menuitem"
+					onclick={() => useAsSelected(cm.row, cm.col)}
+				>
+					選択
+				</button>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -603,6 +616,14 @@
 	}
 
 	.context-menu-item.select:hover {
+		background: rgba(255, 255, 255, 0.5);
+	}
+
+	.context-menu-item.deselect {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	.context-menu-item.deselect:hover {
 		background: rgba(255, 255, 255, 0.5);
 	}
 
