@@ -58,7 +58,7 @@
   <div class="pc-layout">
     <div class="header">
       <LoginButton />
-      <h1 class="title">Nostr Custom Emoji ハイパーつくるくん</h1>
+      <h1 class="title">Nostr Grid Art</h1>
       {#if $selectedEmojiStore}
         <div
           class="pc-preview"
@@ -82,7 +82,7 @@
     </div>
 
     <div class="main-content">
-      <div class="palette-column">
+      <div class="palette-column rounded-md border border-gray-300 p-1">
         <Palette />
       </div>
 

@@ -3,9 +3,8 @@
   import { generateContent, generateTags, getTrimmedSize } from "$lib/output";
   import { publishEvent, getDefaultRelays } from "$lib/nostr/fetchPalette";
 
-  import type { Grid, NullEmojiConfig } from "$lib/types";
+  import type { Grid } from "$lib/types";
   let grid = $state<Grid>([]);
-  let nullConfig = $state<NullEmojiConfig | null>(null);
   let trimmedSize = $state({ cols: 0, rows: 0 });
   let copyStatus = $state("");
   let postStatus = $state("");
@@ -14,12 +13,6 @@
     gridStore.subscribe((g) => {
       grid = g;
       trimmedSize = getTrimmedSize(g);
-    });
-  });
-
-  $effect(() => {
-    nullEmojiStore.subscribe((nc) => {
-      nullConfig = nc;
     });
   });
 
@@ -33,7 +26,7 @@
       return;
     }
 
-    const content = generateContent(grid, nullConfig);
+    const content = generateContent(grid, $nullEmojiStore);
     try {
       await navigator.clipboard.writeText(content);
       copyStatus = "コピーしました!";
@@ -61,7 +54,10 @@
     postStatus = "投稿中...";
 
     try {
-      if (typeof window === "undefined" || !(window as { nostr?: unknown }).nostr) {
+      if (
+        typeof window === "undefined" ||
+        !(window as { nostr?: unknown }).nostr
+      ) {
         postStatus = "エラー: nostr拡張がインストールされていません";
         setTimeout(() => {
           postStatus = "";
@@ -69,8 +65,8 @@
         return;
       }
 
-      const content = generateContent(grid, nullConfig);
-      const tags = generateTags(grid, nullConfig);
+      const content = generateContent(grid, $nullEmojiStore);
+      const tags = generateTags(grid, $nullEmojiStore);
 
       const event = {
         kind: 1,
