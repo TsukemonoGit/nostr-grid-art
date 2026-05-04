@@ -3,8 +3,9 @@
   import { generateContent, generateTags, getTrimmedSize } from "$lib/output";
   import { publishEvent, getDefaultRelays } from "$lib/nostr/fetchPalette";
 
-  let grid = $state<any[]>([]);
-  let nullConfig = $state<any>({});
+  import type { Grid, NullEmojiConfig } from "$lib/types";
+  let grid = $state<Grid>([]);
+  let nullConfig = $state<NullEmojiConfig | null>(null);
   let trimmedSize = $state({ cols: 0, rows: 0 });
   let copyStatus = $state("");
   let postStatus = $state("");
