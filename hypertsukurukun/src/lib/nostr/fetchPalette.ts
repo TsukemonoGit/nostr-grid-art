@@ -5,6 +5,7 @@ import {
   uniq,
   completeOnTimeout,
   type AcceptableDefaultRelaysConfig,
+  createRxForwardReq,
 } from "rx-nostr";
 import type {
   Event as NostrEvent,
@@ -13,9 +14,14 @@ import type {
 } from "nostr-typedef";
 
 import type { PaletteEmoji, PaletteSection } from "$lib/types";
-import { BOOTSTRAP_RELAYS } from "$lib/constants";
+import {
+  APP_30030_ATAG,
+  APP_30030_RELAY,
+  BOOTSTRAP_RELAYS,
+} from "$lib/constants";
 import { verifier } from "@rx-nostr/crypto";
 import { Subject } from "rxjs";
+import { myKind10030Store } from "$lib/stores/myKind10030";
 
 /** rx-nostrのシングルトンインスタンス */
 const rx = createRxNostr({
@@ -211,7 +217,7 @@ async function collectRelays(pubkey: string): Promise<boolean> {
  * ステップ2: kind 10030 を取得する
  * default relays（10002）を使用
  */
-async function fetchKind10030(pubkey: string): Promise<NostrEvent> {
+export async function fetchKind10030(pubkey: string): Promise<NostrEvent> {
   console.log("fetchKind10030: fetching for pubkey:", pubkey);
   console.log("fetchKind10030: current default relays:", getDefaultRelays());
   const events = await fetchEvents({ kinds: [10030], authors: [pubkey] });
@@ -313,13 +319,13 @@ function collectAndResolveAsSections(
     return s.replace(/[^a-zA-Z0-9_-]/g, "_");
   }
 
-  /** 'emoji' タグをイベントから抽出し、衝突解消を適用する */
-  function resolveEmojisFromEvent(
+  /** 'emoji' タグをイベントから抽出する（衝突解消は行わない） */
+  function extractEmojisFromEvent(
     event: NostrEvent,
     refPrefix: string,
     pubkey: string,
   ): PaletteEmoji[] {
-    const shortcodeMap = new Map<string, PaletteEmoji[]>();
+    const emojis: PaletteEmoji[] = [];
 
     for (const tag of event.tags) {
       if (
@@ -342,50 +348,22 @@ function collectAndResolveAsSections(
           entry.ref = `${refPrefix}${pubkey}:`;
         }
 
-        if (!shortcodeMap.has(shortcode)) {
-          shortcodeMap.set(shortcode, []);
-        }
-        shortcodeMap.get(shortcode)!.push(entry);
+        emojis.push(entry);
       }
     }
 
-    // 衝突解消: pubkeyでソートして先勝ち、後続にはsuffix付与
-    const result: PaletteEmoji[] = [];
-    const usedShortcodes = new Set<string>();
-
-    for (const [, entries] of shortcodeMap) {
-      entries.sort((a, b) => {
-        const aPubkey = a.ref?.split(":")[1] ?? "";
-        const bPubkey = b.ref?.split(":")[1] ?? "";
-        return aPubkey.localeCompare(bPubkey);
-      });
-
-      const winner = entries[0];
-      if (!usedShortcodes.has(winner.shortcode)) {
-        usedShortcodes.add(winner.shortcode);
-        result.push(winner);
-      } else {
-        let suffix = 2;
-        let newShortcode = `${winner.shortcode}_${suffix}`;
-        while (usedShortcodes.has(newShortcode)) {
-          suffix++;
-          newShortcode = `${winner.shortcode}_${suffix}`;
-        }
-        usedShortcodes.add(newShortcode);
-        result.push({
-          ...winner,
-          shortcode: newShortcode,
-        });
-      }
-    }
-
-    return result;
+    return emojis;
   }
 
-  // 各30030(identifier)ごとにセクションを作成
+  // 各30030(identifier)ごとにセクションを作成（セクションIDを付与）
+  type EmojiWithSection = PaletteEmoji & { sectionIndex: number };
+  const allEmojisWithSection: EmojiWithSection[] = [];
   const sections: PaletteSection[] = kind30030Results.map(
-    ({ identifier, event }) => {
-      const emojis = resolveEmojisFromEvent(event, "30030:", event.pubkey);
+    ({ identifier, event }, index) => {
+      const emojis = extractEmojisFromEvent(event, "30030:", event.pubkey);
+      for (const emoji of emojis) {
+        allEmojisWithSection.push({ ...emoji, sectionIndex: index });
+      }
       return {
         label: identifier ?? "unnamed",
         emojis,
@@ -393,8 +371,8 @@ function collectAndResolveAsSections(
     },
   );
 
-  // ノラ絵文字（10030に直接のemojiタグ）を収集
-  const norapaintEmojis: PaletteEmoji[] = [];
+  // ノラ絵文字（10030に直接のemojiタグ）を収集（セクションIDを後で付与）
+  const norapaintEmojisRaw: PaletteEmoji[] = [];
   for (const tag of kind10030Event.tags) {
     if (
       Array.isArray(tag) &&
@@ -405,7 +383,7 @@ function collectAndResolveAsSections(
     ) {
       const [, rawShortcode, url] = tag;
       const shortcode = cleanShortcode(rawShortcode);
-      norapaintEmojis.push({
+      norapaintEmojisRaw.push({
         shortcode,
         url,
         originalShortcode: rawShortcode,
@@ -413,11 +391,68 @@ function collectAndResolveAsSections(
     }
   }
 
+  // ノラ絵文字のセクションIDを付与（全30030セクションの後ろ）
+  const norapaintSectionIndex = kind30030Results.length;
+  for (const emoji of norapaintEmojisRaw) {
+    allEmojisWithSection.push({ ...emoji, sectionIndex: norapaintSectionIndex });
+  }
+
+  // 全セクション間で衝突解消: pubkeyでソート、先勝ち
+  const shortcodeMap = new Map<string, EmojiWithSection[]>();
+  for (const emoji of allEmojisWithSection) {
+    if (!shortcodeMap.has(emoji.shortcode)) {
+      shortcodeMap.set(emoji.shortcode, []);
+    }
+    shortcodeMap.get(emoji.shortcode)!.push(emoji);
+  }
+
+  const usedShortcodes = new Set<string>();
+  const resolvedAll: EmojiWithSection[] = [];
+
+  for (const [shortcode, emojis] of shortcodeMap) {
+    // pubkeyでソート（決定性を持たせる）
+    emojis.sort((a, b) => {
+      const aPubkey = a.ref?.split(":")[1] ?? "";
+      const bPubkey = b.ref?.split(":")[1] ?? "";
+      return aPubkey.localeCompare(bPubkey);
+    });
+
+    // 先頭から順に処理（各絵文字に自分のshortcodeを割り当てる）
+    for (const emoji of emojis) {
+      if (!usedShortcodes.has(emoji.shortcode)) {
+        usedShortcodes.add(emoji.shortcode);
+        resolvedAll.push(emoji);
+      } else {
+        let suffix = 2;
+        let newShortcode = `${emoji.shortcode}_${suffix}`;
+        while (usedShortcodes.has(newShortcode)) {
+          suffix++;
+          newShortcode = `${emoji.shortcode}_${suffix}`;
+        }
+        resolvedAll.push({
+          ...emoji,
+          shortcode: newShortcode,
+          sectionIndex: emoji.sectionIndex,
+        });
+        usedShortcodes.add(newShortcode);
+      }
+    }
+  }
+
+  // 結果をセクションごとに再分配
+  for (const section of sections) {
+    section.emojis = resolvedAll
+      .filter((e) => e.sectionIndex === sections.indexOf(section))
+      .map(({ sectionIndex: _, ...emoji }) => emoji);
+  }
+
   // ノラ絵文字セクションを追加（空でない場合のみ）
-  if (norapaintEmojis.length > 0) {
+  if (norapaintEmojisRaw.length > 0) {
     sections.push({
       label: "ノラ絵文字",
-      emojis: norapaintEmojis,
+      emojis: resolvedAll
+        .filter((e) => e.sectionIndex === norapaintSectionIndex)
+        .map(({ sectionIndex: _, ...emoji }) => emoji),
     });
   }
 
@@ -576,58 +611,79 @@ export async function fetchPaletteEmojis(
 }
 
 /**
- * 自分のkind 10030にデフォルト絵文字セットの'a'タグを追加してpublishする
+ * 自分のkind 10030にデフォルトnull絵文字セットの'a'タグを追加してpublishする
+ * kind 10030がない場合は新規作成し、'a'タグが既に追加済みかチェックして重複防止
  * @param pubkey ユーザーの公開鍵
+ * @returns 成功したかどうか
  */
-export async function addDefaultEmojiToMyKind10030(pubkey: string): Promise<boolean> {
-  console.log("addDefaultEmojiToMyKind10030: START pubkey:", pubkey);
+export async function addDefaultEmojiToMyKind10030(
+  pubkey: string,
+): Promise<boolean> {
+  // kind 10030イベントを取得（ない場合はundefined）
+  let kind10030: NostrEvent | undefined;
   try {
-    // kind 10030 を取得
-    const kind10030 = await fetchKind10030(pubkey);
-
-    // 既存の'a'タグを確認（重複防止）
-    const existingAValues = new Set<string>();
-    for (const tag of kind10030.tags) {
-      if (
-        Array.isArray(tag) &&
-        tag.length >= 2 &&
-        tag[0] === "a" &&
-        typeof tag[1] === "string"
-      ) {
-        existingAValues.add(tag[1]);
-      }
-    }
-
-    const newAValue = `30030:${APP_30030_PUBKEY}:${APP_30030_DTAG}`;
-
-    // 既に登録済みかチェック
-    if (existingAValues.has(newAValue)) {
-      console.log("addDefaultEmojiToMyKind10030: already registered");
-      return true;
-    }
-
-    // 新しい'a'タグを追加（relay hint付き）
-    const newTag: [string, string, string] = ["a", newAValue, APP_30030_RELAY];
-    const updatedTags = [...kind10030.tags, newTag];
-
-    // 新しいイベントを作成してsign・publish
-    const { hexlify, finalizeEvent } = await import("nostr-typedef");
-    const newEvent = await finalizeEvent(
-      {
-        kind: 10030,
-        tags: updatedTags,
-        content: kind10030.content,
-        created_at: Math.floor(Date.now() / 1000),
-      },
-      globalThis as unknown as string,
-    );
-
-    console.log("addDefaultEmojiToMyKind10030: publishing updated event");
-    return await publishEvent(newEvent as EventParameters);
-  } catch (err) {
-    console.error("addDefaultEmojiToMyKind10030: ERROR", err);
-    throw err;
+    kind10030 = await fetchKind10030(pubkey);
+  } catch {
+    kind10030 = undefined;
   }
+
+  // kind 10030がない場合は新規作成
+  if (!kind10030) {
+    console.log(
+      "addDefaultEmojiToMyKind10030: no kind 10030 found, creating new event",
+    );
+    const unsignedEvent = {
+      kind: 10030 as const,
+      tags: [["a", APP_30030_ATAG, APP_30030_RELAY]],
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    console.log(
+      "addDefaultEmojiToMyKind10030: signing new event with window.nostr",
+    );
+    const signedEvent = await (window as any).nostr.signEvent(unsignedEvent);
+
+    console.log("addDefaultEmojiToMyKind10030: publishing new event");
+    return await publishEvent(signedEvent as EventParameters);
+  }
+
+  // 既存の'a'タグを確認（重複防止）
+  const existingAValues = new Set<string>();
+  for (const tag of kind10030.tags) {
+    if (
+      Array.isArray(tag) &&
+      tag.length >= 2 &&
+      tag[0] === "a" &&
+      typeof tag[1] === "string"
+    ) {
+      existingAValues.add(tag[1]);
+    }
+  }
+
+  // 既に登録済みかチェック
+  if (existingAValues.has(APP_30030_ATAG)) {
+    console.log("addDefaultEmojiToMyKind10030: already registered");
+    return true;
+  }
+
+  // 新しい'a'タグを追加（relay hint付き）
+  const newTag: (string | string[])[] = ["a", APP_30030_ATAG, APP_30030_RELAY];
+  const updatedTags = [...kind10030.tags, newTag];
+
+  // window.nostr.signEventで署名付きイベントを作成
+  const unsignedEvent = {
+    kind: 10030 as const,
+    tags: updatedTags,
+    content: kind10030.content,
+    created_at: Math.floor(Date.now() / 1000),
+  };
+
+  console.log("addDefaultEmojiToMyKind10030: signing event with window.nostr");
+  const signedEvent = await (window as any).nostr.signEvent(unsignedEvent);
+
+  console.log("addDefaultEmojiToMyKind10030: publishing updated event");
+  return await publishEvent(signedEvent as EventParameters);
 }
 
 /**
@@ -658,4 +714,26 @@ export async function fetchPaletteSections(
     console.error("fetchPaletteSections: ERROR", err);
     throw err;
   }
+}
+
+/** 自分のkind 10030をForwardReqで購読開始する */
+export function startWatchingMyKind10030(currentPubkey: string): void {
+  const req = createRxForwardReq();
+  const flushes$ = new Subject<void>();
+
+  const sub = rx
+    .use(req)
+    .pipe(uniq(flushes$), latest())
+    .subscribe({
+      next: (packet) => {
+        const event = packet.event as unknown as NostrEvent;
+        console.log("startWatchingMyKind10030: received kind 10030", event.id);
+        myKind10030Store.set(event);
+      },
+      error: (err) => {
+        console.error("startWatchingMyKind10030: error", err);
+      },
+    });
+
+  req.emit({ kinds: [10030], authors: [currentPubkey] });
 }

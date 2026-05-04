@@ -2,20 +2,51 @@
   import {
     nullEmojiStore,
     selectedEmojiStore,
-    selectEmoji,
     deselectEmoji,
+    pubkeyStore,
   } from "$lib/stores";
   import type { PaletteEmoji } from "$lib/types";
   import { NULL_EMOJI_SHORTCODE, NULL_EMOJI_URL } from "$lib/constants";
+  import { addDefaultEmojiToMyKind10030 } from "$lib/nostr/fetchPalette";
+  import { hasDefaultRegisteredStore } from "$lib/stores/myKind10030";
 
-  let paletteEmojiMode = $state(false);
   let currentSelected = $state<PaletteEmoji | null>(null);
+  let isAddingTo10030 = $state(false);
+  let addStatus = $state("");
 
   $effect(() => {
     selectedEmojiStore.subscribe((s) => {
       currentSelected = s;
     });
   });
+
+  /** 自分の10030にデフォルトnull絵文字セットの'a'タグを追加する */
+  async function handleAddDefaultToMyKind10030(): Promise<void> {
+    const pubkey = $pubkeyStore;
+    if (!pubkey) {
+      addStatus = "ログインしてください";
+      return;
+    }
+
+    isAddingTo10030 = true;
+    addStatus = "追加中...";
+
+    try {
+      const result = await addDefaultEmojiToMyKind10030(pubkey);
+      if (result) {
+        addStatus = "追加しました";
+      } else {
+        addStatus = "追加に失敗しました";
+      }
+    } catch {
+      addStatus = "エラーが発生しました";
+    } finally {
+      isAddingTo10030 = false;
+      setTimeout(() => {
+        addStatus = "";
+      }, 3000);
+    }
+  }
 
   /** 選択中のパレット絵文字をnull絵文字に設定する */
   function handlePaletteSelect(emoji: PaletteEmoji): void {
@@ -28,13 +59,7 @@
         ref: emoji.ref,
       },
     }));
-    paletteEmojiMode = false;
     deselectEmoji();
-  }
-
-  /** パレットから選択するモードに切り替える */
-  function startPaletteSelection(): void {
-    paletteEmojiMode = true;
   }
 
   /** 全角スペースに変更する（NULL-04: 非推奨として明示） */
@@ -42,7 +67,6 @@
     nullEmojiStore.set({
       type: "fullwidth_space",
     });
-    paletteEmojiMode = false;
     deselectEmoji();
   }
 
@@ -56,7 +80,6 @@
         originalShortcode: NULL_EMOJI_SHORTCODE,
       },
     });
-    paletteEmojiMode = false;
     deselectEmoji();
   }
 
@@ -113,6 +136,22 @@
 
   <!-- デフォルトに戻す -->
   <button class="reset-btn" onclick={resetToDefault}>デフォルトに戻す</button>
+
+  <!-- デフォルトnull絵文字セットが未登録の場合のみ表示 -->
+  {#if !$hasDefaultRegisteredStore}
+    <div class="add-10030-section">
+      <button
+        class="add-10030-btn"
+        onclick={handleAddDefaultToMyKind10030}
+        disabled={isAddingTo10030}
+      >
+        {isAddingTo10030 ? "追加中..." : "デフォルトnull絵文字セットを登録"}
+      </button>
+      {#if addStatus}
+        <span class="add-status">{addStatus}</span>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -150,20 +189,6 @@
     font-family: monospace;
     font-size: 14px;
     color: #555;
-  }
-
-  .select-btn {
-    padding: 6px 12px;
-    border: 1px solid #1976d2;
-    border-radius: 4px;
-    background: white;
-    color: #1976d2;
-    cursor: pointer;
-    font-size: 14px;
-  }
-
-  .select-btn:hover {
-    background: #e3f2fd;
   }
 
   .selection-preview {
@@ -243,5 +268,35 @@
 
   .reset-btn:hover {
     background: #f5f5f5;
+  }
+
+  .add-10030-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .add-10030-btn {
+    padding: 6px 12px;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    background: white;
+    color: #2e7d32;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .add-10030-btn:hover:not(:disabled) {
+    background: #e8f5e9;
+  }
+
+  .add-10030-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .add-status {
+    font-size: 12px;
+    color: #666;
   }
 </style>
